@@ -1,9 +1,108 @@
-import { useNavigate } from "react-router-dom";
+import React, { useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
+import {
+  getFolders,
+  createFolder,
+  renameFolder,
+  deleteFolder,
+  getBreadcrumbs,
+} from "../services/folderService";
+
+import Breadcrumbs from "../components/Breadcrumbs";
+import FolderCard from "../components/FolderCard";
+import CreateFolderModal from "../components/CreateFolderModal";
+import RenameFolderModal from "../components/RenameFolderModal";
+import DeleteFolderModal from "../components/DeleteFolderModal";
 
 const DashboardPage = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+
+  const currentFolderId = searchParams.get("folderId") || null;
+
+  // Modal States
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [createError, setCreateError] = useState("");
+
+  const [renameTargetFolder, setRenameTargetFolder] = useState(null);
+  const [renameError, setRenameError] = useState("");
+
+  const [deleteTargetFolder, setDeleteTargetFolder] = useState(null);
+  const [deleteError, setDeleteError] = useState("");
+
+  // React Query - Folders List
+  const {
+    data: folders = [],
+    isLoading: isLoadingFolders,
+    isError: isErrorFolders,
+    error: foldersError,
+  } = useQuery({
+    queryKey: ["folders", currentFolderId],
+    queryFn: () => getFolders(currentFolderId),
+  });
+
+  // React Query - Breadcrumbs Hierarchy
+  const { data: breadcrumbs = [] } = useQuery({
+    queryKey: ["breadcrumbs", currentFolderId],
+    queryFn: () => (currentFolderId ? getBreadcrumbs(currentFolderId) : Promise.resolve([])),
+    enabled: !!currentFolderId,
+  });
+
+  // Mutations
+  const createMutation = useMutation({
+    mutationFn: (name) => createFolder({ name, parentId: currentFolderId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["folders", currentFolderId] });
+      setIsCreateOpen(false);
+      setCreateError("");
+    },
+    onError: (err) => {
+      setCreateError(err.response?.data?.message || "Failed to create folder");
+    },
+  });
+
+  const renameMutation = useMutation({
+    mutationFn: ({ id, name }) => renameFolder(id, { name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["folders", currentFolderId] });
+      queryClient.invalidateQueries({ queryKey: ["breadcrumbs"] });
+      setRenameTargetFolder(null);
+      setRenameError("");
+    },
+    onError: (err) => {
+      setRenameError(err.response?.data?.message || "Failed to rename folder");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (folderId) => deleteFolder(folderId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["folders", currentFolderId] });
+      queryClient.invalidateQueries({ queryKey: ["breadcrumbs"] });
+      setDeleteTargetFolder(null);
+      setDeleteError("");
+    },
+    onError: (err) => {
+      setDeleteError(err.response?.data?.message || "Failed to delete folder");
+    },
+  });
+
+  // Navigation Handler
+  const handleNavigateFolder = (folderId) => {
+    if (folderId) {
+      setSearchParams({ folderId });
+    } else {
+      setSearchParams({});
+    }
+  };
+
+  const handleOpenFolder = (folder) => {
+    handleNavigateFolder(folder.id);
+  };
 
   const handleLogout = () => {
     logout();
@@ -12,34 +111,122 @@ const DashboardPage = () => {
 
   return (
     <div style={styles.container}>
+      {/* Top Header */}
       <header style={styles.header}>
-        <h1 style={styles.title}>Cloud Meta Storage - Dashboard</h1>
-        <button onClick={handleLogout} style={styles.logoutButton}>
-          Logout
-        </button>
+        <div style={styles.logoSection}>
+          <svg style={styles.logoIcon} viewBox="0 0 24 24" fill="#2563eb">
+            <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z" />
+          </svg>
+          <h1 style={styles.appTitle}>Cloud Meta Storage</h1>
+        </div>
+
+        <div style={styles.userSection}>
+          <div style={styles.userInfo}>
+            <span style={styles.userName}>{user?.name}</span>
+            <span style={styles.userRole}>{user?.role}</span>
+          </div>
+          <button onClick={handleLogout} style={styles.logoutButton}>
+            Logout
+          </button>
+        </div>
       </header>
 
+      {/* Main Content Area */}
       <main style={styles.main}>
-        <div style={styles.card}>
-          <h2 style={styles.cardTitle}>User Profile Information</h2>
-          <div style={styles.infoGroup}>
-            <span style={styles.label}>ID:</span>
-            <span style={styles.value}>{user?.id}</span>
-          </div>
-          <div style={styles.infoGroup}>
-            <span style={styles.label}>Name:</span>
-            <span style={styles.value}>{user?.name}</span>
-          </div>
-          <div style={styles.infoGroup}>
-            <span style={styles.label}>Email:</span>
-            <span style={styles.value}>{user?.email}</span>
-          </div>
-          <div style={styles.infoGroup}>
-            <span style={styles.label}>Role:</span>
-            <span style={styles.roleBadge}>{user?.role}</span>
-          </div>
+        {/* Drive Action Bar */}
+        <div style={styles.actionBar}>
+          <button
+            onClick={() => {
+              setCreateError("");
+              setIsCreateOpen(true);
+            }}
+            style={styles.newFolderButton}
+          >
+            <svg style={styles.plusIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+            </svg>
+            New Folder
+          </button>
         </div>
+
+        {/* Breadcrumb Navigation */}
+        <Breadcrumbs breadcrumbs={breadcrumbs} onNavigate={handleNavigateFolder} />
+
+        {/* Folder Content Grid / States */}
+        {isLoadingFolders ? (
+          <div style={styles.loadingContainer}>
+            <div style={styles.spinner}></div>
+            <p style={styles.loadingText}>Loading folders...</p>
+          </div>
+        ) : isErrorFolders ? (
+          <div style={styles.errorContainer}>
+            <p style={styles.errorText}>
+              {foldersError?.response?.data?.message || "Failed to load folders."}
+            </p>
+            <button
+              onClick={() => handleNavigateFolder(null)}
+              style={styles.returnHomeButton}
+            >
+              Return to My Drive
+            </button>
+          </div>
+        ) : folders.length === 0 ? (
+          <div style={styles.emptyContainer}>
+            <svg style={styles.emptyIcon} fill="none" stroke="#9ca3af" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+            <h3 style={styles.emptyTitle}>This folder is empty</h3>
+            <p style={styles.emptyText}>Create a new folder to organize your meta files.</p>
+          </div>
+        ) : (
+          <div style={styles.grid}>
+            {folders.map((folder) => (
+              <FolderCard
+                key={folder.id}
+                folder={folder}
+                onOpen={handleOpenFolder}
+                onRename={(f) => {
+                  setRenameError("");
+                  setRenameTargetFolder(f);
+                }}
+                onDelete={(f) => {
+                  setDeleteError("");
+                  setDeleteTargetFolder(f);
+                }}
+              />
+            ))}
+          </div>
+        )}
       </main>
+
+      {/* Action Modals */}
+      <CreateFolderModal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        onSubmit={(name) => createMutation.mutate(name)}
+        isLoading={createMutation.isPending}
+        errorMessage={createError}
+      />
+
+      <RenameFolderModal
+        isOpen={!!renameTargetFolder}
+        folder={renameTargetFolder}
+        onClose={() => setRenameTargetFolder(null)}
+        onSubmit={(name) =>
+          renameMutation.mutate({ id: renameTargetFolder.id, name })
+        }
+        isLoading={renameMutation.isPending}
+        errorMessage={renameError}
+      />
+
+      <DeleteFolderModal
+        isOpen={!!deleteTargetFolder}
+        folder={deleteTargetFolder}
+        onClose={() => setDeleteTargetFolder(null)}
+        onConfirm={(folderId) => deleteMutation.mutate(folderId)}
+        isLoading={deleteMutation.isPending}
+        errorMessage={deleteError}
+      />
     </div>
   );
 };
@@ -47,8 +234,8 @@ const DashboardPage = () => {
 const styles = {
   container: {
     minHeight: "100vh",
-    backgroundColor: "#f4f6f8",
-    fontFamily: "sans-serif",
+    backgroundColor: "#f9fafb",
+    fontFamily: "system-ui, -apple-system, sans-serif",
   },
   header: {
     display: "flex",
@@ -56,64 +243,163 @@ const styles = {
     alignItems: "center",
     padding: "16px 32px",
     backgroundColor: "#ffffff",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
+    borderBottom: "1px solid #e5e7eb",
   },
-  title: {
+  logoSection: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+  },
+  logoIcon: {
+    width: "32px",
+    height: "32px",
+  },
+  appTitle: {
     margin: 0,
     fontSize: "20px",
-    fontWeight: "600",
-    color: "#1a1a1a",
+    fontWeight: "700",
+    color: "#111827",
   },
-  logoutButton: {
-    padding: "8px 16px",
+  userSection: {
+    display: "flex",
+    alignItems: "center",
+    gap: "16px",
+  },
+  userInfo: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-end",
+  },
+  userName: {
     fontSize: "14px",
     fontWeight: "600",
-    color: "#d32f2f",
-    backgroundColor: "#ffebee",
-    border: "1px solid #ffcdd2",
+    color: "#1f2937",
+  },
+  userRole: {
+    fontSize: "11px",
+    fontWeight: "600",
+    color: "#2563eb",
+    backgroundColor: "#eff6ff",
+    padding: "2px 6px",
     borderRadius: "4px",
+    marginTop: "2px",
+    textTransform: "uppercase",
+  },
+  logoutButton: {
+    padding: "8px 14px",
+    fontSize: "13px",
+    fontWeight: "500",
+    color: "#dc2626",
+    backgroundColor: "#fef2f2",
+    border: "1px solid #fecaca",
+    borderRadius: "6px",
     cursor: "pointer",
   },
   main: {
-    padding: "32px",
-    maxWidth: "800px",
+    padding: "24px 32px",
+    maxWidth: "1200px",
     margin: "0 auto",
   },
-  card: {
-    backgroundColor: "#ffffff",
-    padding: "24px",
-    borderRadius: "8px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-  },
-  cardTitle: {
-    margin: "0 0 20px 0",
-    fontSize: "18px",
-    color: "#333",
-    borderBottom: "1px solid #eee",
-    paddingBottom: "10px",
-  },
-  infoGroup: {
+  actionBar: {
     display: "flex",
     alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: "16px",
+  },
+  newFolderButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "10px 18px",
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "#ffffff",
+    backgroundColor: "#2563eb",
+    border: "none",
+    borderRadius: "8px",
+    cursor: "pointer",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+  },
+  plusIcon: {
+    width: "18px",
+    height: "18px",
+  },
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+    gap: "16px",
+    marginTop: "16px",
+  },
+  loadingContainer: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "64px 0",
+  },
+  spinner: {
+    width: "36px",
+    height: "36px",
+    border: "3px solid #e5e7eb",
+    borderTopColor: "#2563eb",
+    borderRadius: "50%",
+    animation: "spin 1s linear infinite",
+  },
+  loadingText: {
+    marginTop: "16px",
+    color: "#6b7280",
+    fontSize: "14px",
+  },
+  errorContainer: {
+    backgroundColor: "#fef2f2",
+    border: "1px solid #fecaca",
+    borderRadius: "8px",
+    padding: "24px",
+    textAlign: "center",
+    marginTop: "16px",
+  },
+  errorText: {
+    color: "#991b1b",
+    fontSize: "14px",
+    fontWeight: "500",
     marginBottom: "12px",
   },
-  label: {
-    width: "80px",
+  returnHomeButton: {
+    padding: "8px 16px",
+    fontSize: "13px",
     fontWeight: "600",
-    color: "#666",
-    fontSize: "14px",
+    color: "#2563eb",
+    backgroundColor: "#ffffff",
+    border: "1px solid #bfdbfe",
+    borderRadius: "6px",
+    cursor: "pointer",
   },
-  value: {
-    color: "#222",
-    fontSize: "14px",
+  emptyContainer: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "64px 24px",
+    backgroundColor: "#ffffff",
+    borderRadius: "8px",
+    border: "1px stroke #e5e7eb",
+    marginTop: "16px",
   },
-  roleBadge: {
-    padding: "4px 8px",
-    backgroundColor: "#e3f2fd",
-    color: "#1976d2",
-    borderRadius: "4px",
+  emptyIcon: {
+    width: "48px",
+    height: "48px",
+    marginBottom: "12px",
+  },
+  emptyTitle: {
+    margin: "0 0 4px 0",
+    fontSize: "16px",
     fontWeight: "600",
-    fontSize: "12px",
+    color: "#374151",
+  },
+  emptyText: {
+    margin: 0,
+    fontSize: "14px",
+    color: "#6b7280",
   },
 };
 
