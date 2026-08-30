@@ -12,6 +12,11 @@ export const getFolderFiles = async (folderId) => {
   return response.data;
 };
 
+export const getSharedFiles = async () => {
+  const response = await api.get("/files/shared-with-me");
+  return response.data;
+};
+
 export const getFileMetadata = async (fileId) => {
   const response = await api.get(`/files/${fileId}`);
   return response.data;

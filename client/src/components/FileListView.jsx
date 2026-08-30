@@ -24,6 +24,8 @@ const FileListView = ({
   onRenameFolder,
   onDeleteFolder,
   onDownloadFile,
+  onShareFile,
+  onViewDetailsFile,
   onDeleteFile,
 }) => {
   const [activeMenuId, setActiveMenuId] = useState(null);
@@ -130,6 +132,18 @@ const FileListView = ({
                     </button>
                     {isMenuOpen && (
                       <div style={styles.dropdown}>
+                        {onViewDetailsFile && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMenuId(null);
+                              onViewDetailsFile(file);
+                            }}
+                            style={styles.dropdownItem}
+                          >
+                            View Details
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -140,6 +154,18 @@ const FileListView = ({
                         >
                           Download
                         </button>
+                        {onShareFile && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMenuId(null);
+                              onShareFile(file);
+                            }}
+                            style={styles.dropdownItem}
+                          >
+                            Share
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();

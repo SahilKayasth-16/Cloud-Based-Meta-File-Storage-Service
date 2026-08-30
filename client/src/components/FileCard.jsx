@@ -30,7 +30,7 @@ const formatSize = (bytes) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
 };
 
-const FileCard = ({ file, onDownload, onDelete }) => {
+const FileCard = ({ file, onDownload, onShare, onViewDetails, onDelete }) => {
   const [showMenu, setShowMenu] = useState(false);
 
   const iconInfo = getFileIconInfo(file.filename, file.contentType);
@@ -44,6 +44,18 @@ const FileCard = ({ file, onDownload, onDelete }) => {
     e.stopPropagation();
     setShowMenu(false);
     onDownload(file);
+  };
+
+  const handleShare = (e) => {
+    e.stopPropagation();
+    setShowMenu(false);
+    onShare(file);
+  };
+
+  const handleViewDetails = (e) => {
+    e.stopPropagation();
+    setShowMenu(false);
+    onViewDetails(file);
   };
 
   const handleDelete = (e) => {
@@ -70,11 +82,34 @@ const FileCard = ({ file, onDownload, onDelete }) => {
         </div>
 
         <div style={styles.info}>
-          <span style={styles.filename}>{file.filename}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span style={styles.filename}>{file.filename}</span>
+            {file.sharedRole && (
+              <span
+                style={{
+                  fontSize: "9px",
+                  fontWeight: "700",
+                  padding: "1px 5px",
+                  borderRadius: "4px",
+                  textTransform: "uppercase",
+                  backgroundColor: file.sharedRole === "EDITOR" ? "#fef3c7" : "#eff6ff",
+                  color: file.sharedRole === "EDITOR" ? "#d97706" : "#2563eb",
+                }}
+              >
+                {file.sharedRole}
+              </span>
+            )}
+          </div>
           <div style={styles.subMeta}>
             <span>{formatSize(file.size)}</span>
-            {formattedDate && <span style={styles.dotSeparator}>•</span>}
-            {formattedDate && <span>{formattedDate}</span>}
+            {file.ownerEmail && (
+              <>
+                <span style={styles.dotSeparator}>•</span>
+                <span>By {file.ownerEmail}</span>
+              </>
+            )}
+            {!file.ownerEmail && formattedDate && <span style={styles.dotSeparator}>•</span>}
+            {!file.ownerEmail && formattedDate && <span>{formattedDate}</span>}
           </div>
         </div>
       </div>
@@ -92,12 +127,28 @@ const FileCard = ({ file, onDownload, onDelete }) => {
 
         {showMenu && (
           <div style={styles.dropdown}>
+            {onViewDetails && (
+              <button onClick={handleViewDetails} style={styles.dropdownItem}>
+                <svg style={styles.itemIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                View Details
+              </button>
+            )}
             <button onClick={handleDownload} style={styles.dropdownItem}>
               <svg style={styles.itemIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
               Download
             </button>
+            {onShare && (
+              <button onClick={handleShare} style={styles.dropdownItem}>
+                <svg style={styles.itemIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+                Share
+              </button>
+            )}
             <button onClick={handleDelete} style={styles.dropdownItemDanger}>
               <svg style={styles.itemIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

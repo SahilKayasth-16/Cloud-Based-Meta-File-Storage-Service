@@ -11,6 +11,7 @@ import {
 } from "../services/folderService";
 import {
   getFolderFiles,
+  getSharedFiles,
   uploadFile,
   getDownloadUrl,
   deleteFile,
@@ -25,6 +26,8 @@ import RenameFolderModal from "../components/RenameFolderModal";
 import DeleteFolderModal from "../components/DeleteFolderModal";
 import FileUploadModal from "../components/FileUploadModal";
 import DeleteFileModal from "../components/DeleteFileModal";
+import ShareModal from "../components/ShareModal";
+import FileDetailsModal from "../components/FileDetailsModal";
 
 const DashboardPage = () => {
   const { user, logout } = useAuth();
@@ -33,6 +36,9 @@ const DashboardPage = () => {
   const queryClient = useQueryClient();
 
   const currentFolderId = searchParams.get("folderId") || null;
+
+  // Active Tab: 'my-drive' or 'shared-with-me'
+  const [activeTab, setActiveTab] = useState("my-drive");
 
   // View Mode: 'grid' or 'list'
   const [viewMode, setViewMode] = useState("grid");
@@ -54,7 +60,10 @@ const DashboardPage = () => {
   const [deleteTargetFile, setDeleteTargetFile] = useState(null);
   const [deleteFileError, setDeleteFileError] = useState("");
 
-  // React Query - Folders List
+  const [shareTargetFile, setShareTargetFile] = useState(null);
+  const [detailsTargetFile, setDetailsTargetFile] = useState(null);
+
+  // React Query - Folders List (My Drive)
   const {
     data: folders = [],
     isLoading: isLoadingFolders,
@@ -63,9 +72,10 @@ const DashboardPage = () => {
   } = useQuery({
     queryKey: ["folders", currentFolderId],
     queryFn: () => getFolders(currentFolderId),
+    enabled: activeTab === "my-drive",
   });
 
-  // React Query - Files List (non-deleted files)
+  // React Query - Files List (My Drive)
   const {
     data: files = [],
     isLoading: isLoadingFiles,
@@ -74,13 +84,26 @@ const DashboardPage = () => {
   } = useQuery({
     queryKey: ["files", currentFolderId],
     queryFn: () => getFolderFiles(currentFolderId),
+    enabled: activeTab === "my-drive",
+  });
+
+  // React Query - Shared Files List (Shared with Me)
+  const {
+    data: sharedFiles = [],
+    isLoading: isLoadingSharedFiles,
+    isError: isErrorSharedFiles,
+    error: sharedFilesError,
+  } = useQuery({
+    queryKey: ["sharedFiles"],
+    queryFn: () => getSharedFiles(),
+    enabled: activeTab === "shared-with-me",
   });
 
   // React Query - Breadcrumbs Hierarchy
   const { data: breadcrumbs = [] } = useQuery({
     queryKey: ["breadcrumbs", currentFolderId],
     queryFn: () => (currentFolderId ? getBreadcrumbs(currentFolderId) : Promise.resolve([])),
-    enabled: !!currentFolderId,
+    enabled: !!currentFolderId && activeTab === "my-drive",
   });
 
   // Folder Mutations
@@ -139,6 +162,7 @@ const DashboardPage = () => {
     mutationFn: (fileId) => deleteFile(fileId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["files", currentFolderId] });
+      queryClient.invalidateQueries({ queryKey: ["sharedFiles"] });
       setDeleteTargetFile(null);
       setDeleteFileError("");
     },
@@ -188,9 +212,13 @@ const DashboardPage = () => {
     navigate("/login", { replace: true });
   };
 
-  const isLoading = isLoadingFolders || isLoadingFiles;
-  const isError = isErrorFolders || isErrorFiles;
-  const errorMessage = foldersError?.response?.data?.message || filesError?.response?.data?.message;
+  const isLoading = activeTab === "my-drive" ? (isLoadingFolders || isLoadingFiles) : isLoadingSharedFiles;
+  const isError = activeTab === "my-drive" ? (isErrorFolders || isErrorFiles) : isErrorSharedFiles;
+  const errorMessage = activeTab === "my-drive"
+    ? (foldersError?.response?.data?.message || filesError?.response?.data?.message)
+    : sharedFilesError?.response?.data?.message;
+
+  const currentFiles = activeTab === "my-drive" ? files : sharedFiles;
 
   return (
     <div style={styles.container}>
@@ -216,34 +244,73 @@ const DashboardPage = () => {
 
       {/* Main Content Area */}
       <main style={styles.main}>
+        {/* Navigation Tabs (My Drive vs Shared with Me) */}
+        <div style={styles.tabsContainer}>
+          <button
+            onClick={() => {
+              setActiveTab("my-drive");
+              setSearchParams({});
+            }}
+            style={{
+              ...styles.tabButton,
+              ...(activeTab === "my-drive" ? styles.tabActive : {}),
+            }}
+          >
+            <svg style={styles.tabIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+            My Drive
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab("shared-with-me");
+              setSearchParams({});
+            }}
+            style={{
+              ...styles.tabButton,
+              ...(activeTab === "shared-with-me" ? styles.tabActive : {}),
+            }}
+          >
+            <svg style={styles.tabIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+            Shared with me
+          </button>
+        </div>
+
         {/* Drive Action Bar */}
         <div style={styles.actionBar}>
           <div style={styles.actionButtonGroup}>
-            <button
-              onClick={() => {
-                setCreateError("");
-                setIsCreateOpen(true);
-              }}
-              style={styles.newFolderButton}
-            >
-              <svg style={styles.buttonIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-              </svg>
-              New Folder
-            </button>
+            {activeTab === "my-drive" && (
+              <>
+                <button
+                  onClick={() => {
+                    setCreateError("");
+                    setIsCreateOpen(true);
+                  }}
+                  style={styles.newFolderButton}
+                >
+                  <svg style={styles.buttonIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                  </svg>
+                  New Folder
+                </button>
 
-            <button
-              onClick={() => {
-                setUploadError("");
-                setIsUploadOpen(true);
-              }}
-              style={styles.uploadFileButton}
-            >
-              <svg style={styles.buttonIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
-              Upload File
-            </button>
+                <button
+                  onClick={() => {
+                    setUploadError("");
+                    setIsUploadOpen(true);
+                  }}
+                  style={styles.uploadFileButton}
+                >
+                  <svg style={styles.buttonIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  Upload File
+                </button>
+              </>
+            )}
           </div>
 
           {/* Grid / List View Toggle */}
@@ -277,14 +344,18 @@ const DashboardPage = () => {
           </div>
         </div>
 
-        {/* Breadcrumb Navigation */}
-        <Breadcrumbs breadcrumbs={breadcrumbs} onNavigate={handleNavigateFolder} />
+        {/* Breadcrumb Navigation (My Drive mode) */}
+        {activeTab === "my-drive" && (
+          <Breadcrumbs breadcrumbs={breadcrumbs} onNavigate={handleNavigateFolder} />
+        )}
 
         {/* Folder & File Content Grid / List / States */}
         {isLoading ? (
           <div style={styles.loadingContainer}>
             <div style={styles.spinner}></div>
-            <p style={styles.loadingText}>Loading directory contents...</p>
+            <p style={styles.loadingText}>
+              {activeTab === "my-drive" ? "Loading directory contents..." : "Loading shared files..."}
+            </p>
           </div>
         ) : isError ? (
           <div style={styles.errorContainer}>
@@ -298,18 +369,25 @@ const DashboardPage = () => {
               Return to My Drive
             </button>
           </div>
-        ) : folders.length === 0 && files.length === 0 ? (
+        ) : (activeTab === "my-drive" && folders.length === 0 && files.length === 0) ||
+          (activeTab === "shared-with-me" && sharedFiles.length === 0) ? (
           <div style={styles.emptyContainer}>
             <svg style={styles.emptyIcon} fill="none" stroke="#9ca3af" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
-            <h3 style={styles.emptyTitle}>This folder is empty</h3>
-            <p style={styles.emptyText}>Create a new folder or upload a file to get started.</p>
+            <h3 style={styles.emptyTitle}>
+              {activeTab === "my-drive" ? "This folder is empty" : "No shared files yet"}
+            </h3>
+            <p style={styles.emptyText}>
+              {activeTab === "my-drive"
+                ? "Create a new folder or upload a file to get started."
+                : "Files shared with you by other owners will appear here."}
+            </p>
           </div>
         ) : viewMode === "list" ? (
           <FileListView
-            folders={folders}
-            files={files}
+            folders={activeTab === "my-drive" ? folders : []}
+            files={currentFiles}
             onOpenFolder={handleOpenFolder}
             onRenameFolder={(f) => {
               setRenameError("");
@@ -320,6 +398,8 @@ const DashboardPage = () => {
               setDeleteTargetFolder(f);
             }}
             onDownloadFile={handleDownloadFile}
+            onShareFile={activeTab === "my-drive" ? (f) => setShareTargetFile(f) : null}
+            onViewDetailsFile={(f) => setDetailsTargetFile(f)}
             onDeleteFile={(f) => {
               setDeleteFileError("");
               setDeleteTargetFile(f);
@@ -327,8 +407,8 @@ const DashboardPage = () => {
           />
         ) : (
           <div>
-            {/* Folders Section */}
-            {folders.length > 0 && (
+            {/* Folders Section (My Drive Mode) */}
+            {activeTab === "my-drive" && folders.length > 0 && (
               <div style={styles.section}>
                 <h2 style={styles.sectionTitle}>Folders ({folders.length})</h2>
                 <div style={styles.grid}>
@@ -352,15 +432,21 @@ const DashboardPage = () => {
             )}
 
             {/* Files Section */}
-            {files.length > 0 && (
+            {currentFiles.length > 0 && (
               <div style={styles.section}>
-                <h2 style={styles.sectionTitle}>Files ({files.length})</h2>
+                <h2 style={styles.sectionTitle}>
+                  {activeTab === "my-drive"
+                    ? `Files (${currentFiles.length})`
+                    : `Shared Documents (${currentFiles.length})`}
+                </h2>
                 <div style={styles.grid}>
-                  {files.map((file) => (
+                  {currentFiles.map((file) => (
                     <FileCard
                       key={file.id}
                       file={file}
                       onDownload={handleDownloadFile}
+                      onShare={activeTab === "my-drive" ? (f) => setShareTargetFile(f) : null}
+                      onViewDetails={(f) => setDetailsTargetFile(f)}
                       onDelete={(f) => {
                         setDeleteFileError("");
                         setDeleteTargetFile(f);
@@ -421,6 +507,20 @@ const DashboardPage = () => {
         onConfirm={(fileId) => deleteFileMutation.mutate(fileId)}
         isLoading={deleteFileMutation.isPending}
         errorMessage={deleteFileError}
+      />
+
+      <ShareModal
+        isOpen={!!shareTargetFile}
+        file={shareTargetFile}
+        onClose={() => setShareTargetFile(null)}
+      />
+
+      <FileDetailsModal
+        isOpen={!!detailsTargetFile}
+        fileId={detailsTargetFile?.id}
+        file={detailsTargetFile}
+        onClose={() => setDetailsTargetFile(null)}
+        onDownload={handleDownloadFile}
       />
     </div>
   );
@@ -495,6 +595,35 @@ const styles = {
     maxWidth: "1200px",
     margin: "0 auto",
   },
+  tabsContainer: {
+    display: "flex",
+    gap: "12px",
+    borderBottom: "2px solid #e5e7eb",
+    marginBottom: "20px",
+  },
+  tabButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "10px 16px",
+    fontSize: "15px",
+    fontWeight: "500",
+    color: "#6b7280",
+    backgroundColor: "transparent",
+    border: "none",
+    borderBottom: "3px solid transparent",
+    marginBottom: "-2px",
+    cursor: "pointer",
+  },
+  tabActive: {
+    color: "#2563eb",
+    fontWeight: "700",
+    borderBottomColor: "#2563eb",
+  },
+  tabIcon: {
+    width: "20px",
+    height: "20px",
+  },
   actionBar: {
     display: "flex",
     alignItems: "center",
@@ -505,6 +634,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: "12px",
+    minHeight: "42px",
   },
   newFolderButton: {
     display: "inline-flex",
@@ -634,7 +764,7 @@ const styles = {
     padding: "64px 24px",
     backgroundColor: "#ffffff",
     borderRadius: "8px",
-    border: "1px stroke #e5e7eb",
+    border: "1px solid #e5e7eb",
     marginTop: "16px",
   },
   emptyIcon: {

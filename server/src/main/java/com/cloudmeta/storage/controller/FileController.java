@@ -52,6 +52,14 @@ public class FileController {
         return ResponseEntity.ok(files);
     }
 
+    @GetMapping("/shared-with-me")
+    public ResponseEntity<List<FileResponse>> getSharedFiles(
+            Authentication authentication
+    ) {
+        List<FileResponse> files = fileService.getSharedFiles(authentication.getName());
+        return ResponseEntity.ok(files);
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<FileResponse> getFileById(
             @PathVariable UUID id,

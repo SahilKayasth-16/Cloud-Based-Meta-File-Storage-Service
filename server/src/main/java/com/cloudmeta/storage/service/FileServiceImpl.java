@@ -17,9 +17,12 @@ import com.cloudmeta.storage.entity.Folder;
 import com.cloudmeta.storage.entity.User;
 import com.cloudmeta.storage.exception.FileNotFoundException;
 import com.cloudmeta.storage.exception.FolderNotFoundException;
+import com.cloudmeta.storage.entity.Share;
 import com.cloudmeta.storage.repository.FileRepository;
 import com.cloudmeta.storage.repository.FolderRepository;
+import com.cloudmeta.storage.repository.ShareRepository;
 import com.cloudmeta.storage.repository.UserRepository;
+import com.cloudmeta.storage.security.FilePermission;
 import com.cloudmeta.storage.service.storage.StorageService;
 
 import lombok.RequiredArgsConstructor;
@@ -33,11 +36,22 @@ public class FileServiceImpl implements FileService {
     private final FileRepository fileRepository;
     private final FolderRepository folderRepository;
     private final UserRepository userRepository;
+    private final ShareRepository shareRepository;
     private final StorageService storageService;
+    private final PermissionService permissionService;
 
     private User getUserByEmail(String email) {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
+    }
+
+    private File getActiveFile(UUID fileId) {
+        File file = fileRepository.findById(fileId)
+                .orElseThrow(() -> new FileNotFoundException("File not found"));
+        if (file.getDeletedAt() != null) {
+            throw new FileNotFoundException("File has been deleted");
+        }
+        return file;
     }
 
     @Override
@@ -100,11 +114,24 @@ public class FileServiceImpl implements FileService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<FileResponse> getSharedFiles(String userEmail) {
+        User user = getUserByEmail(userEmail);
+        List<Share> shares = shareRepository.findByUserId(user.getId());
+
+        return shares.stream()
+                .filter(share -> share.getFile() != null && share.getFile().getDeletedAt() == null)
+                .map(share -> FileResponse.fromEntityWithRole(share.getFile(), share.getRole()))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public FileResponse getFileById(UUID fileId, String userEmail) {
         User user = getUserByEmail(userEmail);
+        File file = getActiveFile(fileId);
 
-        File file = fileRepository.findByIdAndOwnerIdAndDeletedAtIsNull(fileId, user.getId())
-                .orElseThrow(() -> new FileNotFoundException("File not found or has been deleted"));
+        // Require READ permission via PermissionEngine
+        permissionService.requirePermission(user, file, FilePermission.READ);
 
         return FileResponse.fromEntity(file);
     }
@@ -113,9 +140,10 @@ public class FileServiceImpl implements FileService {
     @Transactional(readOnly = true)
     public DownloadUrlResponse getDownloadUrl(UUID fileId, String userEmail) {
         User user = getUserByEmail(userEmail);
+        File file = getActiveFile(fileId);
 
-        File file = fileRepository.findByIdAndOwnerIdAndDeletedAtIsNull(fileId, user.getId())
-                .orElseThrow(() -> new FileNotFoundException("File not found or has been deleted"));
+        // Require DOWNLOAD permission via PermissionEngine
+        permissionService.requirePermission(user, file, FilePermission.DOWNLOAD);
 
         String downloadUrl = storageService.generateSignedDownloadUrl(file.getStorageKey(), 300);
         log.info("Generated download URL for file id={}, user={}", fileId, userEmail);
@@ -130,9 +158,10 @@ public class FileServiceImpl implements FileService {
     @Transactional
     public void softDeleteFile(UUID fileId, String userEmail) {
         User user = getUserByEmail(userEmail);
+        File file = getActiveFile(fileId);
 
-        File file = fileRepository.findByIdAndOwnerIdAndDeletedAtIsNull(fileId, user.getId())
-                .orElseThrow(() -> new FileNotFoundException("File not found or already deleted"));
+        // Require DELETE permission via PermissionEngine
+        permissionService.requirePermission(user, file, FilePermission.DELETE);
 
         // SOFT DELETE: Set deletedAt timestamp, do NOT physically delete object from Storage
         file.setDeletedAt(LocalDateTime.now());
@@ -146,7 +175,12 @@ public class FileServiceImpl implements FileService {
         User user = getUserByEmail(userEmail);
         String userPrefix = "users/" + user.getId() + "/";
         if (!storageKey.startsWith(userPrefix)) {
-            throw new FileNotFoundException("Access denied to requested storage key");
+            // Check if user has permission to any file with this storageKey
+            File file = fileRepository.findAll().stream()
+                    .filter(f -> storageKey.equals(f.getStorageKey()))
+                    .findFirst()
+                    .orElseThrow(() -> new FileNotFoundException("Access denied to requested storage key"));
+            permissionService.requirePermission(user, file, FilePermission.DOWNLOAD);
         }
         return storageService.getFileInputStream(storageKey);
     }

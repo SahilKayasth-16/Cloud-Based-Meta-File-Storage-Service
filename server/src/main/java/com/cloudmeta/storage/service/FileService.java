@@ -15,6 +15,8 @@ public interface FileService {
 
     List<FileResponse> getFiles(UUID folderId, String userEmail);
 
+    List<FileResponse> getSharedFiles(String userEmail);
+
     FileResponse getFileById(UUID fileId, String userEmail);
 
     DownloadUrlResponse getDownloadUrl(UUID fileId, String userEmail);
