@@ -30,7 +30,7 @@ const formatSize = (bytes) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
 };
 
-const FileCard = ({ file, onDelete }) => {
+const FileCard = ({ file, onDownload, onDelete }) => {
   const [showMenu, setShowMenu] = useState(false);
 
   const iconInfo = getFileIconInfo(file.filename, file.contentType);
@@ -38,6 +38,12 @@ const FileCard = ({ file, onDelete }) => {
   const handleMenuClick = (e) => {
     e.stopPropagation();
     setShowMenu((prev) => !prev);
+  };
+
+  const handleDownload = (e) => {
+    e.stopPropagation();
+    setShowMenu(false);
+    onDownload(file);
   };
 
   const handleDelete = (e) => {
@@ -86,6 +92,12 @@ const FileCard = ({ file, onDelete }) => {
 
         {showMenu && (
           <div style={styles.dropdown}>
+            <button onClick={handleDownload} style={styles.dropdownItem}>
+              <svg style={styles.itemIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Download
+            </button>
             <button onClick={handleDelete} style={styles.dropdownItemDanger}>
               <svg style={styles.itemIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -188,6 +200,18 @@ const styles = {
     zIndex: 20,
     padding: "4px 0",
   },
+  dropdownItem: {
+    display: "flex",
+    alignItems: "center",
+    width: "100%",
+    padding: "8px 12px",
+    fontSize: "13px",
+    color: "#374151",
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    textAlign: "left",
+  },
   dropdownItemDanger: {
     display: "flex",
     alignItems: "center",
@@ -208,4 +232,3 @@ const styles = {
 };
 
 export default FileCard;
-

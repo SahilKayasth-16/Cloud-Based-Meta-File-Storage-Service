@@ -7,7 +7,7 @@ const DeleteFileModal = ({ isOpen, file, onClose, onConfirm, isLoading, errorMes
     <div style={styles.overlay}>
       <div style={styles.modal}>
         <div style={styles.header}>
-          <h3 style={styles.title}>Delete file?</h3>
+          <h3 style={styles.title}>Move this file to Trash?</h3>
           <button onClick={onClose} style={styles.closeButton}>
             &times;
           </button>
@@ -19,7 +19,7 @@ const DeleteFileModal = ({ isOpen, file, onClose, onConfirm, isLoading, errorMes
             Are you sure you want to delete <strong>"{file.filename}"</strong>?
           </p>
           <p style={styles.subtext}>
-            This action will remove the file metadata and permanently delete the object from storage.
+            This file will be moved to trash and hidden from normal file listings.
           </p>
         </div>
 
@@ -38,7 +38,7 @@ const DeleteFileModal = ({ isOpen, file, onClose, onConfirm, isLoading, errorMes
             style={styles.deleteButton}
             disabled={isLoading}
           >
-            {isLoading ? "Deleting..." : "Delete"}
+            {isLoading ? "Deleting..." : "Move to Trash"}
           </button>
         </div>
       </div>
@@ -140,4 +140,3 @@ const styles = {
 };
 
 export default DeleteFileModal;
-

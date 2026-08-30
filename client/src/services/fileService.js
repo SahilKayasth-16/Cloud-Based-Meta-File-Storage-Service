@@ -6,7 +6,13 @@ export const getFiles = async (folderId = null) => {
   return response.data;
 };
 
-export const getFileById = async (fileId) => {
+export const getFolderFiles = async (folderId) => {
+  if (!folderId) return getFiles(null);
+  const response = await api.get(`/folders/${folderId}/files`);
+  return response.data;
+};
+
+export const getFileMetadata = async (fileId) => {
   const response = await api.get(`/files/${fileId}`);
   return response.data;
 };
@@ -27,8 +33,12 @@ export const uploadFile = async (file, folderId = null, onUploadProgress) => {
   return response.data;
 };
 
+export const getDownloadUrl = async (fileId) => {
+  const response = await api.get(`/files/${fileId}/download-url`);
+  return response.data;
+};
+
 export const deleteFile = async (fileId) => {
   const response = await api.delete(`/files/${fileId}`);
   return response.data;
 };
-

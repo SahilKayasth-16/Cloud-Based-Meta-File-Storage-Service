@@ -12,9 +12,11 @@ import com.cloudmeta.storage.entity.File;
 @Repository
 public interface FileRepository extends JpaRepository<File, UUID> {
 
-    List<File> findByOwnerIdAndFolderIsNullOrderByFilenameAsc(UUID ownerId);
+    List<File> findByOwnerIdAndFolderIsNullAndDeletedAtIsNullOrderByFilenameAsc(UUID ownerId);
 
-    List<File> findByOwnerIdAndFolderIdOrderByFilenameAsc(UUID ownerId, UUID folderId);
+    List<File> findByOwnerIdAndFolderIdAndDeletedAtIsNullOrderByFilenameAsc(UUID ownerId, UUID folderId);
+
+    Optional<File> findByIdAndOwnerIdAndDeletedAtIsNull(UUID id, UUID ownerId);
 
     Optional<File> findByIdAndOwnerId(UUID id, UUID ownerId);
 
@@ -24,4 +26,3 @@ public interface FileRepository extends JpaRepository<File, UUID> {
 
     List<File> findByFolderId(UUID folderId);
 }
-

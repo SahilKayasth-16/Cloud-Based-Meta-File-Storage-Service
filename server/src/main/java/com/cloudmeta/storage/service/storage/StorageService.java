@@ -11,5 +11,6 @@ public interface StorageService {
     InputStream getFileInputStream(String storageKey);
 
     void deleteFile(String storageKey);
-}
 
+    String generateSignedDownloadUrl(String storageKey, int expirationSeconds);
+}

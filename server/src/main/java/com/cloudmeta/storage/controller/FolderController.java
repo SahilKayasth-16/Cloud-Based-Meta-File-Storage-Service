@@ -16,10 +16,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.cloudmeta.storage.dto.file.FileResponse;
 import com.cloudmeta.storage.dto.folder.BreadcrumbItem;
 import com.cloudmeta.storage.dto.folder.CreateFolderRequest;
 import com.cloudmeta.storage.dto.folder.FolderResponse;
 import com.cloudmeta.storage.dto.folder.UpdateFolderRequest;
+import com.cloudmeta.storage.service.FileService;
 import com.cloudmeta.storage.service.FolderService;
 
 import jakarta.validation.Valid;
@@ -31,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 public class FolderController {
 
     private final FolderService folderService;
+    private final FileService fileService;
 
     @PostMapping
     public ResponseEntity<FolderResponse> createFolder(
@@ -57,6 +60,15 @@ public class FolderController {
     ) {
         FolderResponse response = folderService.getFolderById(id, authentication.getName());
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{folderId}/files")
+    public ResponseEntity<List<FileResponse>> getFolderFiles(
+            @PathVariable UUID folderId,
+            Authentication authentication
+    ) {
+        List<FileResponse> files = fileService.getFiles(folderId, authentication.getName());
+        return ResponseEntity.ok(files);
     }
 
     @PutMapping("/{id}")
@@ -87,4 +99,3 @@ public class FolderController {
         return ResponseEntity.ok(breadcrumbs);
     }
 }
-

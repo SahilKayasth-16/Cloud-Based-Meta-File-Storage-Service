@@ -1,9 +1,14 @@
 package com.cloudmeta.storage.controller;
 
+import java.io.InputStream;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -15,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.cloudmeta.storage.dto.file.DownloadUrlResponse;
 import com.cloudmeta.storage.dto.file.FileResponse;
 import com.cloudmeta.storage.service.FileService;
 
@@ -55,13 +61,37 @@ public class FileController {
         return ResponseEntity.ok(response);
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteFile(
+    @GetMapping("/{id}/download-url")
+    public ResponseEntity<DownloadUrlResponse> getDownloadUrl(
             @PathVariable UUID id,
             Authentication authentication
     ) {
-        fileService.deleteFile(id, authentication.getName());
+        DownloadUrlResponse response = fileService.getDownloadUrl(id, authentication.getName());
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/download-raw")
+    public ResponseEntity<Resource> downloadRaw(
+            @RequestParam("key") String key,
+            Authentication authentication
+    ) {
+        InputStream inputStream = fileService.getFileInputStreamByKey(key, authentication.getName());
+        InputStreamResource resource = new InputStreamResource(inputStream);
+
+        String filename = key.contains("_") ? key.substring(key.indexOf("_") + 1) : "downloaded_file";
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(resource);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> softDeleteFile(
+            @PathVariable UUID id,
+            Authentication authentication
+    ) {
+        fileService.softDeleteFile(id, authentication.getName());
         return ResponseEntity.noContent().build();
     }
 }
-

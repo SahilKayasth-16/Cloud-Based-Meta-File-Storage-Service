@@ -10,14 +10,16 @@ import {
   getBreadcrumbs,
 } from "../services/folderService";
 import {
-  getFiles,
+  getFolderFiles,
   uploadFile,
+  getDownloadUrl,
   deleteFile,
 } from "../services/fileService";
 
 import Breadcrumbs from "../components/Breadcrumbs";
 import FolderCard from "../components/FolderCard";
 import FileCard from "../components/FileCard";
+import FileListView from "../components/FileListView";
 import CreateFolderModal from "../components/CreateFolderModal";
 import RenameFolderModal from "../components/RenameFolderModal";
 import DeleteFolderModal from "../components/DeleteFolderModal";
@@ -31,6 +33,9 @@ const DashboardPage = () => {
   const queryClient = useQueryClient();
 
   const currentFolderId = searchParams.get("folderId") || null;
+
+  // View Mode: 'grid' or 'list'
+  const [viewMode, setViewMode] = useState("grid");
 
   // Modal States - Folder
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -60,7 +65,7 @@ const DashboardPage = () => {
     queryFn: () => getFolders(currentFolderId),
   });
 
-  // React Query - Files List
+  // React Query - Files List (non-deleted files)
   const {
     data: files = [],
     isLoading: isLoadingFiles,
@@ -68,7 +73,7 @@ const DashboardPage = () => {
     error: filesError,
   } = useQuery({
     queryKey: ["files", currentFolderId],
-    queryFn: () => getFiles(currentFolderId),
+    queryFn: () => getFolderFiles(currentFolderId),
   });
 
   // React Query - Breadcrumbs Hierarchy
@@ -141,6 +146,29 @@ const DashboardPage = () => {
       setDeleteFileError(err.response?.data?.message || "Failed to delete file");
     },
   });
+
+  // Secure File Download Handler
+  const handleDownloadFile = async (file) => {
+    try {
+      const response = await getDownloadUrl(file.id);
+      if (response && response.downloadUrl) {
+        let finalUrl = response.downloadUrl;
+        const token = sessionStorage.getItem("auth_token");
+        if (token && finalUrl.includes("localhost:8080") && !finalUrl.includes("token=")) {
+          finalUrl += (finalUrl.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(token);
+        }
+
+        const link = document.createElement("a");
+        link.href = finalUrl;
+        link.download = file.filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to generate download URL");
+    }
+  };
 
   // Navigation Handler
   const handleNavigateFolder = (folderId) => {
@@ -217,12 +245,42 @@ const DashboardPage = () => {
               Upload File
             </button>
           </div>
+
+          {/* Grid / List View Toggle */}
+          <div style={styles.viewToggleGroup}>
+            <button
+              onClick={() => setViewMode("grid")}
+              style={{
+                ...styles.viewToggleButton,
+                ...(viewMode === "grid" ? styles.viewToggleActive : {}),
+              }}
+              title="Grid View"
+            >
+              <svg style={styles.toggleIcon} fill="currentColor" viewBox="0 0 24 24">
+                <path d="M4 4h4v4H4V4zm6 0h4v4h-4V4zm6 0h4v4h-4V4zM4 10h4v4H4v-4zm6 0h4v4h-4v-4zm6 0h4v4h-4v-4zM4 16h4v4H4v-4zm6 0h4v4h-4v-4zm6 0h4v4h-4v-4z" />
+              </svg>
+              Grid
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              style={{
+                ...styles.viewToggleButton,
+                ...(viewMode === "list" ? styles.viewToggleActive : {}),
+              }}
+              title="List View"
+            >
+              <svg style={styles.toggleIcon} fill="currentColor" viewBox="0 0 24 24">
+                <path d="M4 14h16v-2H4v2zm0 5h16v-2H4v2zM4 5v2h16V5H4z" />
+              </svg>
+              List
+            </button>
+          </div>
         </div>
 
         {/* Breadcrumb Navigation */}
         <Breadcrumbs breadcrumbs={breadcrumbs} onNavigate={handleNavigateFolder} />
 
-        {/* Folder & File Content Grid / States */}
+        {/* Folder & File Content Grid / List / States */}
         {isLoading ? (
           <div style={styles.loadingContainer}>
             <div style={styles.spinner}></div>
@@ -245,9 +303,28 @@ const DashboardPage = () => {
             <svg style={styles.emptyIcon} fill="none" stroke="#9ca3af" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
-            <h3 style={styles.emptyTitle}>This directory is empty</h3>
+            <h3 style={styles.emptyTitle}>This folder is empty</h3>
             <p style={styles.emptyText}>Create a new folder or upload a file to get started.</p>
           </div>
+        ) : viewMode === "list" ? (
+          <FileListView
+            folders={folders}
+            files={files}
+            onOpenFolder={handleOpenFolder}
+            onRenameFolder={(f) => {
+              setRenameError("");
+              setRenameTargetFolder(f);
+            }}
+            onDeleteFolder={(f) => {
+              setDeleteError("");
+              setDeleteTargetFolder(f);
+            }}
+            onDownloadFile={handleDownloadFile}
+            onDeleteFile={(f) => {
+              setDeleteFileError("");
+              setDeleteTargetFile(f);
+            }}
+          />
         ) : (
           <div>
             {/* Folders Section */}
@@ -283,6 +360,7 @@ const DashboardPage = () => {
                     <FileCard
                       key={file.id}
                       file={file}
+                      onDownload={handleDownloadFile}
                       onDelete={(f) => {
                         setDeleteFileError("");
                         setDeleteTargetFile(f);
@@ -459,6 +537,36 @@ const styles = {
   buttonIcon: {
     width: "18px",
     height: "18px",
+  },
+  viewToggleGroup: {
+    display: "flex",
+    alignItems: "center",
+    backgroundColor: "#e5e7eb",
+    padding: "2px",
+    borderRadius: "6px",
+  },
+  viewToggleButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "6px 12px",
+    fontSize: "13px",
+    fontWeight: "500",
+    color: "#4b5563",
+    backgroundColor: "transparent",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer",
+  },
+  viewToggleActive: {
+    backgroundColor: "#ffffff",
+    color: "#111827",
+    fontWeight: "600",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+  },
+  toggleIcon: {
+    width: "16px",
+    height: "16px",
   },
   section: {
     marginBottom: "28px",

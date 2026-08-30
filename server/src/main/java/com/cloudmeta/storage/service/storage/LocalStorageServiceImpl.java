@@ -1,6 +1,8 @@
 package com.cloudmeta.storage.service.storage;
 
 import java.io.InputStream;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -65,5 +67,15 @@ public class LocalStorageServiceImpl implements StorageService {
             throw new StorageException("Failed to delete local file: " + e.getMessage(), e);
         }
     }
-}
 
+    @Override
+    public String generateSignedDownloadUrl(String storageKey, int expirationSeconds) {
+        try {
+            String encodedKey = URLEncoder.encode(storageKey, StandardCharsets.UTF_8);
+            return "http://localhost:8080/api/files/download-raw?key=" + encodedKey;
+        } catch (Exception e) {
+            log.error("Error generating local download URL for key: {}", storageKey, e);
+            throw new StorageException("Failed to generate local download URL: " + e.getMessage(), e);
+        }
+    }
+}

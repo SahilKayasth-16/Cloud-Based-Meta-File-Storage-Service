@@ -1,5 +1,7 @@
 package com.cloudmeta.storage.service;
 
+import java.io.InputStream;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -8,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.cloudmeta.storage.dto.file.DownloadUrlResponse;
 import com.cloudmeta.storage.dto.file.FileResponse;
 import com.cloudmeta.storage.entity.File;
 import com.cloudmeta.storage.entity.Folder;
@@ -83,13 +86,13 @@ public class FileServiceImpl implements FileService {
             folderRepository.findByIdAndOwnerId(folderId, user.getId())
                     .orElseThrow(() -> new FolderNotFoundException("Parent folder not found"));
 
-            return fileRepository.findByOwnerIdAndFolderIdOrderByFilenameAsc(user.getId(), folderId)
+            return fileRepository.findByOwnerIdAndFolderIdAndDeletedAtIsNullOrderByFilenameAsc(user.getId(), folderId)
                     .stream()
                     .map(FileResponse::fromEntity)
                     .toList();
         }
 
-        return fileRepository.findByOwnerIdAndFolderIsNullOrderByFilenameAsc(user.getId())
+        return fileRepository.findByOwnerIdAndFolderIsNullAndDeletedAtIsNullOrderByFilenameAsc(user.getId())
                 .stream()
                 .map(FileResponse::fromEntity)
                 .toList();
@@ -100,26 +103,51 @@ public class FileServiceImpl implements FileService {
     public FileResponse getFileById(UUID fileId, String userEmail) {
         User user = getUserByEmail(userEmail);
 
-        File file = fileRepository.findByIdAndOwnerId(fileId, user.getId())
-                .orElseThrow(() -> new FileNotFoundException("File not found"));
+        File file = fileRepository.findByIdAndOwnerIdAndDeletedAtIsNull(fileId, user.getId())
+                .orElseThrow(() -> new FileNotFoundException("File not found or has been deleted"));
 
         return FileResponse.fromEntity(file);
     }
 
     @Override
-    @Transactional
-    public void deleteFile(UUID fileId, String userEmail) {
+    @Transactional(readOnly = true)
+    public DownloadUrlResponse getDownloadUrl(UUID fileId, String userEmail) {
         User user = getUserByEmail(userEmail);
 
-        File file = fileRepository.findByIdAndOwnerId(fileId, user.getId())
-                .orElseThrow(() -> new FileNotFoundException("File not found"));
+        File file = fileRepository.findByIdAndOwnerIdAndDeletedAtIsNull(fileId, user.getId())
+                .orElseThrow(() -> new FileNotFoundException("File not found or has been deleted"));
 
-        // 1. Delete object from Object Storage
-        storageService.deleteFile(file.getStorageKey());
+        String downloadUrl = storageService.generateSignedDownloadUrl(file.getStorageKey(), 300);
+        log.info("Generated download URL for file id={}, user={}", fileId, userEmail);
 
-        // 2. Delete metadata from PostgreSQL
-        fileRepository.delete(file);
-        log.info("Deleted file metadata from DB: id={}, filename={}", fileId, file.getFilename());
+        return DownloadUrlResponse.builder()
+                .downloadUrl(downloadUrl)
+                .expiresIn(300)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public void softDeleteFile(UUID fileId, String userEmail) {
+        User user = getUserByEmail(userEmail);
+
+        File file = fileRepository.findByIdAndOwnerIdAndDeletedAtIsNull(fileId, user.getId())
+                .orElseThrow(() -> new FileNotFoundException("File not found or already deleted"));
+
+        // SOFT DELETE: Set deletedAt timestamp, do NOT physically delete object from Storage
+        file.setDeletedAt(LocalDateTime.now());
+        fileRepository.save(file);
+        log.info("Soft deleted file id={}, filename={} in PostgreSQL", fileId, file.getFilename());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public InputStream getFileInputStreamByKey(String storageKey, String userEmail) {
+        User user = getUserByEmail(userEmail);
+        String userPrefix = "users/" + user.getId() + "/";
+        if (!storageKey.startsWith(userPrefix)) {
+            throw new FileNotFoundException("Access denied to requested storage key");
+        }
+        return storageService.getFileInputStream(storageKey);
     }
 }
-

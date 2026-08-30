@@ -13,6 +13,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 @Configuration
 public class StorageConfig {
@@ -51,5 +52,20 @@ public class StorageConfig {
 
         return builder.build();
     }
-}
 
+    @Bean
+    @ConditionalOnProperty(name = "storage.provider", havingValue = "s3", matchIfMissing = false)
+    public S3Presigner s3Presigner() {
+        S3Presigner.Builder builder = S3Presigner.builder()
+                .region(Region.of(region))
+                .credentialsProvider(StaticCredentialsProvider.create(
+                        AwsBasicCredentials.create(accessKey, secretKey)
+                ));
+
+        if (endpoint != null && !endpoint.isBlank()) {
+            builder.endpointOverride(URI.create(endpoint));
+        }
+
+        return builder.build();
+    }
+}

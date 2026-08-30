@@ -1,10 +1,12 @@
 package com.cloudmeta.storage.service;
 
+import java.io.InputStream;
 import java.util.List;
 import java.util.UUID;
 
 import org.springframework.web.multipart.MultipartFile;
 
+import com.cloudmeta.storage.dto.file.DownloadUrlResponse;
 import com.cloudmeta.storage.dto.file.FileResponse;
 
 public interface FileService {
@@ -15,6 +17,9 @@ public interface FileService {
 
     FileResponse getFileById(UUID fileId, String userEmail);
 
-    void deleteFile(UUID fileId, String userEmail);
-}
+    DownloadUrlResponse getDownloadUrl(UUID fileId, String userEmail);
 
+    void softDeleteFile(UUID fileId, String userEmail);
+
+    InputStream getFileInputStreamByKey(String storageKey, String userEmail);
+}
