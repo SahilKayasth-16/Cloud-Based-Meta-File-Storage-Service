@@ -1,0 +1,27 @@
+package com.cloudmeta.storage.repository;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import com.cloudmeta.storage.entity.File;
+
+@Repository
+public interface FileRepository extends JpaRepository<File, UUID> {
+
+    List<File> findByOwnerIdAndFolderIsNullOrderByFilenameAsc(UUID ownerId);
+
+    List<File> findByOwnerIdAndFolderIdOrderByFilenameAsc(UUID ownerId, UUID folderId);
+
+    Optional<File> findByIdAndOwnerId(UUID id, UUID ownerId);
+
+    boolean existsByOwnerIdAndFolderIdAndFilename(UUID ownerId, UUID folderId, String filename);
+
+    boolean existsByOwnerIdAndFolderIsNullAndFilename(UUID ownerId, String filename);
+
+    List<File> findByFolderId(UUID folderId);
+}
+

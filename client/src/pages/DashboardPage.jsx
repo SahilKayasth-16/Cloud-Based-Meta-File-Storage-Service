@@ -9,12 +9,20 @@ import {
   deleteFolder,
   getBreadcrumbs,
 } from "../services/folderService";
+import {
+  getFiles,
+  uploadFile,
+  deleteFile,
+} from "../services/fileService";
 
 import Breadcrumbs from "../components/Breadcrumbs";
 import FolderCard from "../components/FolderCard";
+import FileCard from "../components/FileCard";
 import CreateFolderModal from "../components/CreateFolderModal";
 import RenameFolderModal from "../components/RenameFolderModal";
 import DeleteFolderModal from "../components/DeleteFolderModal";
+import FileUploadModal from "../components/FileUploadModal";
+import DeleteFileModal from "../components/DeleteFileModal";
 
 const DashboardPage = () => {
   const { user, logout } = useAuth();
@@ -24,7 +32,7 @@ const DashboardPage = () => {
 
   const currentFolderId = searchParams.get("folderId") || null;
 
-  // Modal States
+  // Modal States - Folder
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createError, setCreateError] = useState("");
 
@@ -33,6 +41,13 @@ const DashboardPage = () => {
 
   const [deleteTargetFolder, setDeleteTargetFolder] = useState(null);
   const [deleteError, setDeleteError] = useState("");
+
+  // Modal States - File
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+
+  const [deleteTargetFile, setDeleteTargetFile] = useState(null);
+  const [deleteFileError, setDeleteFileError] = useState("");
 
   // React Query - Folders List
   const {
@@ -45,6 +60,17 @@ const DashboardPage = () => {
     queryFn: () => getFolders(currentFolderId),
   });
 
+  // React Query - Files List
+  const {
+    data: files = [],
+    isLoading: isLoadingFiles,
+    isError: isErrorFiles,
+    error: filesError,
+  } = useQuery({
+    queryKey: ["files", currentFolderId],
+    queryFn: () => getFiles(currentFolderId),
+  });
+
   // React Query - Breadcrumbs Hierarchy
   const { data: breadcrumbs = [] } = useQuery({
     queryKey: ["breadcrumbs", currentFolderId],
@@ -52,8 +78,8 @@ const DashboardPage = () => {
     enabled: !!currentFolderId,
   });
 
-  // Mutations
-  const createMutation = useMutation({
+  // Folder Mutations
+  const createFolderMutation = useMutation({
     mutationFn: (name) => createFolder({ name, parentId: currentFolderId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["folders", currentFolderId] });
@@ -65,7 +91,7 @@ const DashboardPage = () => {
     },
   });
 
-  const renameMutation = useMutation({
+  const renameFolderMutation = useMutation({
     mutationFn: ({ id, name }) => renameFolder(id, { name }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["folders", currentFolderId] });
@@ -78,7 +104,7 @@ const DashboardPage = () => {
     },
   });
 
-  const deleteMutation = useMutation({
+  const deleteFolderMutation = useMutation({
     mutationFn: (folderId) => deleteFolder(folderId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["folders", currentFolderId] });
@@ -88,6 +114,31 @@ const DashboardPage = () => {
     },
     onError: (err) => {
       setDeleteError(err.response?.data?.message || "Failed to delete folder");
+    },
+  });
+
+  // File Mutations
+  const uploadFileMutation = useMutation({
+    mutationFn: ({ file, onProgress }) => uploadFile(file, currentFolderId, onProgress),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["files", currentFolderId] });
+      setIsUploadOpen(false);
+      setUploadError("");
+    },
+    onError: (err) => {
+      setUploadError(err.response?.data?.message || "Failed to upload file");
+    },
+  });
+
+  const deleteFileMutation = useMutation({
+    mutationFn: (fileId) => deleteFile(fileId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["files", currentFolderId] });
+      setDeleteTargetFile(null);
+      setDeleteFileError("");
+    },
+    onError: (err) => {
+      setDeleteFileError(err.response?.data?.message || "Failed to delete file");
     },
   });
 
@@ -108,6 +159,10 @@ const DashboardPage = () => {
     logout();
     navigate("/login", { replace: true });
   };
+
+  const isLoading = isLoadingFolders || isLoadingFiles;
+  const isError = isErrorFolders || isErrorFiles;
+  const errorMessage = foldersError?.response?.data?.message || filesError?.response?.data?.message;
 
   return (
     <div style={styles.container}>
@@ -135,33 +190,48 @@ const DashboardPage = () => {
       <main style={styles.main}>
         {/* Drive Action Bar */}
         <div style={styles.actionBar}>
-          <button
-            onClick={() => {
-              setCreateError("");
-              setIsCreateOpen(true);
-            }}
-            style={styles.newFolderButton}
-          >
-            <svg style={styles.plusIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-            </svg>
-            New Folder
-          </button>
+          <div style={styles.actionButtonGroup}>
+            <button
+              onClick={() => {
+                setCreateError("");
+                setIsCreateOpen(true);
+              }}
+              style={styles.newFolderButton}
+            >
+              <svg style={styles.buttonIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+              </svg>
+              New Folder
+            </button>
+
+            <button
+              onClick={() => {
+                setUploadError("");
+                setIsUploadOpen(true);
+              }}
+              style={styles.uploadFileButton}
+            >
+              <svg style={styles.buttonIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              Upload File
+            </button>
+          </div>
         </div>
 
         {/* Breadcrumb Navigation */}
         <Breadcrumbs breadcrumbs={breadcrumbs} onNavigate={handleNavigateFolder} />
 
-        {/* Folder Content Grid / States */}
-        {isLoadingFolders ? (
+        {/* Folder & File Content Grid / States */}
+        {isLoading ? (
           <div style={styles.loadingContainer}>
             <div style={styles.spinner}></div>
-            <p style={styles.loadingText}>Loading folders...</p>
+            <p style={styles.loadingText}>Loading directory contents...</p>
           </div>
-        ) : isErrorFolders ? (
+        ) : isError ? (
           <div style={styles.errorContainer}>
             <p style={styles.errorText}>
-              {foldersError?.response?.data?.message || "Failed to load folders."}
+              {errorMessage || "Failed to load directory contents."}
             </p>
             <button
               onClick={() => handleNavigateFolder(null)}
@@ -170,41 +240,68 @@ const DashboardPage = () => {
               Return to My Drive
             </button>
           </div>
-        ) : folders.length === 0 ? (
+        ) : folders.length === 0 && files.length === 0 ? (
           <div style={styles.emptyContainer}>
             <svg style={styles.emptyIcon} fill="none" stroke="#9ca3af" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
-            <h3 style={styles.emptyTitle}>This folder is empty</h3>
-            <p style={styles.emptyText}>Create a new folder to organize your meta files.</p>
+            <h3 style={styles.emptyTitle}>This directory is empty</h3>
+            <p style={styles.emptyText}>Create a new folder or upload a file to get started.</p>
           </div>
         ) : (
-          <div style={styles.grid}>
-            {folders.map((folder) => (
-              <FolderCard
-                key={folder.id}
-                folder={folder}
-                onOpen={handleOpenFolder}
-                onRename={(f) => {
-                  setRenameError("");
-                  setRenameTargetFolder(f);
-                }}
-                onDelete={(f) => {
-                  setDeleteError("");
-                  setDeleteTargetFolder(f);
-                }}
-              />
-            ))}
+          <div>
+            {/* Folders Section */}
+            {folders.length > 0 && (
+              <div style={styles.section}>
+                <h2 style={styles.sectionTitle}>Folders ({folders.length})</h2>
+                <div style={styles.grid}>
+                  {folders.map((folder) => (
+                    <FolderCard
+                      key={folder.id}
+                      folder={folder}
+                      onOpen={handleOpenFolder}
+                      onRename={(f) => {
+                        setRenameError("");
+                        setRenameTargetFolder(f);
+                      }}
+                      onDelete={(f) => {
+                        setDeleteError("");
+                        setDeleteTargetFolder(f);
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Files Section */}
+            {files.length > 0 && (
+              <div style={styles.section}>
+                <h2 style={styles.sectionTitle}>Files ({files.length})</h2>
+                <div style={styles.grid}>
+                  {files.map((file) => (
+                    <FileCard
+                      key={file.id}
+                      file={file}
+                      onDelete={(f) => {
+                        setDeleteFileError("");
+                        setDeleteTargetFile(f);
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>
 
-      {/* Action Modals */}
+      {/* Folder Modals */}
       <CreateFolderModal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
-        onSubmit={(name) => createMutation.mutate(name)}
-        isLoading={createMutation.isPending}
+        onSubmit={(name) => createFolderMutation.mutate(name)}
+        isLoading={createFolderMutation.isPending}
         errorMessage={createError}
       />
 
@@ -213,9 +310,9 @@ const DashboardPage = () => {
         folder={renameTargetFolder}
         onClose={() => setRenameTargetFolder(null)}
         onSubmit={(name) =>
-          renameMutation.mutate({ id: renameTargetFolder.id, name })
+          renameFolderMutation.mutate({ id: renameTargetFolder.id, name })
         }
-        isLoading={renameMutation.isPending}
+        isLoading={renameFolderMutation.isPending}
         errorMessage={renameError}
       />
 
@@ -223,9 +320,29 @@ const DashboardPage = () => {
         isOpen={!!deleteTargetFolder}
         folder={deleteTargetFolder}
         onClose={() => setDeleteTargetFolder(null)}
-        onConfirm={(folderId) => deleteMutation.mutate(folderId)}
-        isLoading={deleteMutation.isPending}
+        onConfirm={(folderId) => deleteFolderMutation.mutate(folderId)}
+        isLoading={deleteFolderMutation.isPending}
         errorMessage={deleteError}
+      />
+
+      {/* File Modals */}
+      <FileUploadModal
+        isOpen={isUploadOpen}
+        onClose={() => setIsUploadOpen(false)}
+        onUpload={(file, onProgress) =>
+          uploadFileMutation.mutate({ file, onProgress })
+        }
+        isLoading={uploadFileMutation.isPending}
+        errorMessage={uploadError}
+      />
+
+      <DeleteFileModal
+        isOpen={!!deleteTargetFile}
+        file={deleteTargetFile}
+        onClose={() => setDeleteTargetFile(null)}
+        onConfirm={(fileId) => deleteFileMutation.mutate(fileId)}
+        isLoading={deleteFileMutation.isPending}
+        errorMessage={deleteFileError}
       />
     </div>
   );
@@ -306,7 +423,26 @@ const styles = {
     justifyContent: "space-between",
     marginBottom: "16px",
   },
+  actionButtonGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+  },
   newFolderButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "10px 18px",
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "#374151",
+    backgroundColor: "#ffffff",
+    border: "1px solid #d1d5db",
+    borderRadius: "8px",
+    cursor: "pointer",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+  },
+  uploadFileButton: {
     display: "inline-flex",
     alignItems: "center",
     gap: "8px",
@@ -320,15 +456,23 @@ const styles = {
     cursor: "pointer",
     boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
   },
-  plusIcon: {
+  buttonIcon: {
     width: "18px",
     height: "18px",
+  },
+  section: {
+    marginBottom: "28px",
+  },
+  sectionTitle: {
+    fontSize: "15px",
+    fontWeight: "600",
+    color: "#4b5563",
+    margin: "0 0 12px 0",
   },
   grid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
     gap: "16px",
-    marginTop: "16px",
   },
   loadingContainer: {
     display: "flex",
