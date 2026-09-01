@@ -1,10 +1,24 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createShare, getFileShares, removeShare } from "../services/shareService";
+import {
+  createPublicLink,
+  getFilePublicLinks,
+  revokePublicLink,
+} from "../services/publicLinkService";
 
 const ShareModal = ({ isOpen, file, onClose }) => {
+  const [activeTab, setActiveTab] = useState("user-share"); // 'user-share' | 'public-link'
+
+  // User Share Form State
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("VIEWER");
+
+  // Public Link Form State
+  const [expirationDays, setExpirationDays] = useState("0"); // 0 = Never
+  const [linkPassword, setLinkPassword] = useState("");
+  const [copiedLinkId, setCopiedLinkId] = useState(null);
+
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
@@ -14,11 +28,18 @@ const ShareModal = ({ isOpen, file, onClose }) => {
   const { data: shares = [], isLoading: isLoadingShares } = useQuery({
     queryKey: ["fileShares", file?.id],
     queryFn: () => (file?.id ? getFileShares(file.id) : Promise.resolve([])),
-    enabled: !!isOpen && !!file?.id,
+    enabled: !!isOpen && !!file?.id && activeTab === "user-share",
+  });
+
+  // Fetch public links for this file
+  const { data: publicLinks = [], isLoading: isLoadingPublicLinks } = useQuery({
+    queryKey: ["publicLinks", file?.id],
+    queryFn: () => (file?.id ? getFilePublicLinks(file.id) : Promise.resolve([])),
+    enabled: !!isOpen && !!file?.id && activeTab === "public-link",
   });
 
   // Share Creation Mutation
-  const createMutation = useMutation({
+  const createShareMutation = useMutation({
     mutationFn: (data) => createShare(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["fileShares", file?.id] });
@@ -34,7 +55,7 @@ const ShareModal = ({ isOpen, file, onClose }) => {
   });
 
   // Remove Share Mutation
-  const removeMutation = useMutation({
+  const removeShareMutation = useMutation({
     mutationFn: (shareId) => removeShare(shareId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["fileShares", file?.id] });
@@ -47,23 +68,81 @@ const ShareModal = ({ isOpen, file, onClose }) => {
     },
   });
 
+  // Create Public Link Mutation
+  const createLinkMutation = useMutation({
+    mutationFn: (data) => createPublicLink(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["publicLinks", file?.id] });
+      setLinkPassword("");
+      setErrorMessage("");
+      setSuccessMessage("Public share link created!");
+      setTimeout(() => setSuccessMessage(""), 3000);
+    },
+    onError: (err) => {
+      setSuccessMessage("");
+      setErrorMessage(err.response?.data?.message || "Failed to create public link");
+    },
+  });
+
+  // Revoke Public Link Mutation
+  const revokeLinkMutation = useMutation({
+    mutationFn: (linkId) => revokePublicLink(linkId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["publicLinks", file?.id] });
+      setErrorMessage("");
+      setSuccessMessage("Public link revoked!");
+      setTimeout(() => setSuccessMessage(""), 3000);
+    },
+    onError: (err) => {
+      setErrorMessage(err.response?.data?.message || "Failed to revoke public link");
+    },
+  });
+
   if (!isOpen || !file) return null;
 
-  const handleSubmit = (e) => {
+  const handleUserShareSubmit = (e) => {
     e.preventDefault();
     if (!email.trim()) return;
     setErrorMessage("");
     setSuccessMessage("");
-    createMutation.mutate({
+    createShareMutation.mutate({
       fileId: file.id,
       email: email.trim(),
       role: role,
     });
   };
 
+  const handlePublicLinkSubmit = (e) => {
+    e.preventDefault();
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    let expiresAt = null;
+    const days = parseInt(expirationDays, 10);
+    if (days > 0) {
+      const date = new Date();
+      date.setDate(date.getDate() + days);
+      expiresAt = date.toISOString().slice(0, 19);
+    }
+
+    createLinkMutation.mutate({
+      fileId: file.id,
+      expiresAt: expiresAt,
+      password: linkPassword.trim() || null,
+    });
+  };
+
+  const handleCopyLink = (url, linkId) => {
+    navigator.clipboard.writeText(url);
+    setCopiedLinkId(linkId);
+    setTimeout(() => setCopiedLinkId(null), 2000);
+  };
+
   const handleClose = () => {
     setEmail("");
     setRole("VIEWER");
+    setLinkPassword("");
+    setExpirationDays("0");
     setErrorMessage("");
     setSuccessMessage("");
     onClose();
@@ -79,94 +158,223 @@ const ShareModal = ({ isOpen, file, onClose }) => {
           </button>
         </div>
 
+        {/* Modal Tab Controls */}
+        <div style={styles.tabsHeader}>
+          <button
+            onClick={() => {
+              setActiveTab("user-share");
+              setErrorMessage("");
+              setSuccessMessage("");
+            }}
+            style={{
+              ...styles.tabBtn,
+              ...(activeTab === "user-share" ? styles.tabBtnActive : {}),
+            }}
+          >
+            User Sharing
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab("public-link");
+              setErrorMessage("");
+              setSuccessMessage("");
+            }}
+            style={{
+              ...styles.tabBtn,
+              ...(activeTab === "public-link" ? styles.tabBtnActive : {}),
+            }}
+          >
+            Public Link
+          </button>
+        </div>
+
         <div style={styles.body}>
           {errorMessage && <div style={styles.errorAlert}>{errorMessage}</div>}
           {successMessage && <div style={styles.successAlert}>{successMessage}</div>}
 
-          <form onSubmit={handleSubmit} style={styles.form}>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>User Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="user@example.com"
-                required
-                style={styles.input}
-                disabled={createMutation.isPending}
-              />
-            </div>
-
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Permission Role</label>
-              <div style={styles.radioGroup}>
-                <label style={styles.radioLabel}>
+          {/* Tab 1: User Sharing */}
+          {activeTab === "user-share" ? (
+            <div>
+              <form onSubmit={handleUserShareSubmit} style={styles.form}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>User Email</label>
                   <input
-                    type="radio"
-                    name="shareRole"
-                    value="VIEWER"
-                    checked={role === "VIEWER"}
-                    onChange={(e) => setRole(e.target.value)}
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="user@example.com"
+                    required
+                    style={styles.input}
+                    disabled={createShareMutation.isPending}
                   />
-                  <span style={styles.radioText}>Viewer (Read & Download)</span>
-                </label>
-                <label style={styles.radioLabel}>
-                  <input
-                    type="radio"
-                    name="shareRole"
-                    value="EDITOR"
-                    checked={role === "EDITOR"}
-                    onChange={(e) => setRole(e.target.value)}
-                  />
-                  <span style={styles.radioText}>Editor (Read, Download, Modify & Delete)</span>
-                </label>
-              </div>
-            </div>
+                </div>
 
-            <button
-              type="submit"
-              style={styles.shareButton}
-              disabled={createMutation.isPending || !email.trim()}
-            >
-              {createMutation.isPending ? "Sharing..." : "Share Access"}
-            </button>
-          </form>
-
-          {/* Active Shares List */}
-          <div style={styles.sharesSection}>
-            <h4 style={styles.sharesTitle}>People with access</h4>
-            {isLoadingShares ? (
-              <p style={styles.loadingText}>Loading shares...</p>
-            ) : shares.length === 0 ? (
-              <p style={styles.emptyText}>Not shared with anyone yet.</p>
-            ) : (
-              <div style={styles.sharesList}>
-                {shares.map((share) => (
-                  <div key={share.id} style={styles.shareItem}>
-                    <div style={styles.shareInfo}>
-                      <span style={styles.shareEmail}>{share.userEmail}</span>
-                      <span
-                        style={{
-                          ...styles.roleBadge,
-                          ...(share.role === "EDITOR" ? styles.editorBadge : styles.viewerBadge),
-                        }}
-                      >
-                        {share.role}
-                      </span>
-                    </div>
-
-                    <button
-                      onClick={() => removeMutation.mutate(share.id)}
-                      style={styles.revokeButton}
-                      disabled={removeMutation.isPending}
-                    >
-                      Revoke
-                    </button>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Permission Role</label>
+                  <div style={styles.radioGroup}>
+                    <label style={styles.radioLabel}>
+                      <input
+                        type="radio"
+                        name="shareRole"
+                        value="VIEWER"
+                        checked={role === "VIEWER"}
+                        onChange={(e) => setRole(e.target.value)}
+                      />
+                      <span style={styles.radioText}>Viewer (Read & Download)</span>
+                    </label>
+                    <label style={styles.radioLabel}>
+                      <input
+                        type="radio"
+                        name="shareRole"
+                        value="EDITOR"
+                        checked={role === "EDITOR"}
+                        onChange={(e) => setRole(e.target.value)}
+                      />
+                      <span style={styles.radioText}>Editor (Read, Download, Modify & Delete)</span>
+                    </label>
                   </div>
-                ))}
+                </div>
+
+                <button
+                  type="submit"
+                  style={styles.shareButton}
+                  disabled={createShareMutation.isPending || !email.trim()}
+                >
+                  {createShareMutation.isPending ? "Sharing..." : "Share Access"}
+                </button>
+              </form>
+
+              {/* Active Shares List */}
+              <div style={styles.sharesSection}>
+                <h4 style={styles.sharesTitle}>People with access</h4>
+                {isLoadingShares ? (
+                  <p style={styles.loadingText}>Loading shares...</p>
+                ) : shares.length === 0 ? (
+                  <p style={styles.emptyText}>Not shared with anyone yet.</p>
+                ) : (
+                  <div style={styles.sharesList}>
+                    {shares.map((share) => (
+                      <div key={share.id} style={styles.shareItem}>
+                        <div style={styles.shareInfo}>
+                          <span style={styles.shareEmail}>{share.userEmail}</span>
+                          <span
+                            style={{
+                              ...styles.roleBadge,
+                              ...(share.role === "EDITOR" ? styles.editorBadge : styles.viewerBadge),
+                            }}
+                          >
+                            {share.role}
+                          </span>
+                        </div>
+
+                        <button
+                          onClick={() => removeShareMutation.mutate(share.id)}
+                          style={styles.revokeButton}
+                          disabled={removeShareMutation.isPending}
+                        >
+                          Revoke
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            /* Tab 2: Public Share Links */
+            <div>
+              <form onSubmit={handlePublicLinkSubmit} style={styles.form}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Link Expiration</label>
+                  <select
+                    value={expirationDays}
+                    onChange={(e) => setExpirationDays(e.target.value)}
+                    style={styles.select}
+                  >
+                    <option value="0">Never</option>
+                    <option value="1">1 Day</option>
+                    <option value="7">7 Days</option>
+                    <option value="30">30 Days</option>
+                  </select>
+                </div>
+
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Password Protection (Optional)</label>
+                  <input
+                    type="password"
+                    value={linkPassword}
+                    onChange={(e) => setLinkPassword(e.target.value)}
+                    placeholder="Leave empty for open link"
+                    style={styles.input}
+                    disabled={createLinkMutation.isPending}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  style={styles.shareButton}
+                  disabled={createLinkMutation.isPending}
+                >
+                  {createLinkMutation.isPending ? "Generating..." : "Generate Public Link"}
+                </button>
+              </form>
+
+              {/* Active Public Links List */}
+              <div style={styles.sharesSection}>
+                <h4 style={styles.sharesTitle}>Active Public Links</h4>
+                {isLoadingPublicLinks ? (
+                  <p style={styles.loadingText}>Loading public links...</p>
+                ) : publicLinks.filter((l) => l.active).length === 0 ? (
+                  <p style={styles.emptyText}>No active public share links.</p>
+                ) : (
+                  <div style={styles.sharesList}>
+                    {publicLinks
+                      .filter((link) => link.active)
+                      .map((link) => (
+                        <div key={link.id} style={styles.linkCard}>
+                          <div style={styles.linkHeader}>
+                            <input
+                              type="text"
+                              readOnly
+                              value={link.publicUrl}
+                              style={styles.linkUrlInput}
+                            />
+                            <button
+                              onClick={() => handleCopyLink(link.publicUrl, link.id)}
+                              style={styles.copyButton}
+                            >
+                              {copiedLinkId === link.id ? "Copied!" : "Copy"}
+                            </button>
+                          </div>
+
+                          <div style={styles.linkMetaRow}>
+                            <div style={styles.metaBadges}>
+                              {link.isPasswordProtected && (
+                                <span style={styles.pwdBadge}>🔒 Password Protected</span>
+                              )}
+                              <span style={styles.expireBadge}>
+                                {link.expiresAt
+                                  ? `Expires: ${new Date(link.expiresAt).toLocaleDateString()}`
+                                  : "Never expires"}
+                              </span>
+                            </div>
+
+                            <button
+                              onClick={() => revokeLinkMutation.mutate(link.id)}
+                              style={styles.revokeButton}
+                              disabled={revokeLinkMutation.isPending}
+                            >
+                              Revoke
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={styles.footer}>
@@ -196,7 +404,7 @@ const styles = {
     backgroundColor: "#ffffff",
     borderRadius: "8px",
     width: "100%",
-    maxWidth: "480px",
+    maxWidth: "520px",
     boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
     overflow: "hidden",
   },
@@ -219,6 +427,27 @@ const styles = {
     fontSize: "20px",
     color: "#9ca3af",
     cursor: "pointer",
+  },
+  tabsHeader: {
+    display: "flex",
+    borderBottom: "1px solid #e5e7eb",
+    backgroundColor: "#f9fafb",
+  },
+  tabBtn: {
+    flex: 1,
+    padding: "10px",
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "#6b7280",
+    backgroundColor: "transparent",
+    border: "none",
+    borderBottom: "2px solid transparent",
+    cursor: "pointer",
+  },
+  tabBtnActive: {
+    color: "#2563eb",
+    backgroundColor: "#ffffff",
+    borderBottomColor: "#2563eb",
   },
   body: {
     padding: "20px",
@@ -244,6 +473,16 @@ const styles = {
     fontSize: "14px",
     border: "1px solid #d1d5db",
     borderRadius: "6px",
+    outline: "none",
+    boxSizing: "border-box",
+  },
+  select: {
+    width: "100%",
+    padding: "10px 12px",
+    fontSize: "14px",
+    border: "1px solid #d1d5db",
+    borderRadius: "6px",
+    backgroundColor: "#ffffff",
     outline: "none",
     boxSizing: "border-box",
   },
@@ -288,7 +527,7 @@ const styles = {
   sharesList: {
     display: "flex",
     flexDirection: "column",
-    gap: "8px",
+    gap: "10px",
   },
   shareItem: {
     display: "flex",
@@ -323,6 +562,60 @@ const styles = {
   editorBadge: {
     backgroundColor: "#fef3c7",
     color: "#d97706",
+  },
+  linkCard: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px",
+    padding: "10px 12px",
+    backgroundColor: "#f9fafb",
+    borderRadius: "6px",
+    border: "1px solid #e5e7eb",
+  },
+  linkHeader: {
+    display: "flex",
+    gap: "8px",
+  },
+  linkUrlInput: {
+    flex: 1,
+    fontSize: "12px",
+    fontFamily: "monospace",
+    padding: "6px 8px",
+    border: "1px solid #d1d5db",
+    borderRadius: "4px",
+    backgroundColor: "#ffffff",
+  },
+  copyButton: {
+    padding: "6px 12px",
+    fontSize: "12px",
+    fontWeight: "600",
+    color: "#2563eb",
+    backgroundColor: "#eff6ff",
+    border: "1px solid #bfdbfe",
+    borderRadius: "4px",
+    cursor: "pointer",
+  },
+  linkMetaRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  metaBadges: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  },
+  pwdBadge: {
+    fontSize: "11px",
+    color: "#92400e",
+    backgroundColor: "#fef3c7",
+    padding: "2px 6px",
+    borderRadius: "4px",
+    fontWeight: "600",
+  },
+  expireBadge: {
+    fontSize: "11px",
+    color: "#6b7280",
   },
   revokeButton: {
     background: "none",
@@ -379,4 +672,3 @@ const styles = {
 };
 
 export default ShareModal;
-

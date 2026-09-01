@@ -23,5 +23,5 @@ public interface FileService {
 
     void softDeleteFile(UUID fileId, String userEmail);
 
-    InputStream getFileInputStreamByKey(String storageKey, String userEmail);
+    InputStream getFileInputStreamByKey(String storageKey, String shareToken, String userEmail);
 }

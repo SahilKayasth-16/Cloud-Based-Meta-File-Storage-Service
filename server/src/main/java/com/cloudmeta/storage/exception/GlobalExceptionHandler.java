@@ -53,6 +53,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 
+    @ExceptionHandler(LinkShareExpiredException.class)
+    public ResponseEntity<ErrorResponse> handleLinkShareExpired(LinkShareExpiredException ex) {
+        ErrorResponse response = ErrorResponse.builder()
+                .success(false)
+                .message(ex.getMessage())
+                .build();
+        return ResponseEntity.status(HttpStatus.GONE).body(response);
+    }
+
     @ExceptionHandler(FileNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleFileNotFound(FileNotFoundException ex) {
         ErrorResponse response = ErrorResponse.builder()

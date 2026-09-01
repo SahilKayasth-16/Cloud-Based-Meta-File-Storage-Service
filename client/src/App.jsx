@@ -5,6 +5,7 @@ import HealthPage from "./pages/HealthPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
+import SharePage from "./pages/SharePage";
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
           <Route path="/" element={<HealthPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/share/:token" element={<SharePage />} />
           <Route
             path="/dashboard"
             element={

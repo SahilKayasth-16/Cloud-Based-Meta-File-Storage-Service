@@ -47,6 +47,9 @@ public class SecurityConfig {
             )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/health", "/api/auth/register", "/api/auth/login").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/files/download-raw").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/public-links/*").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/public-links/*/verify").permitAll()
                 .anyRequest().authenticated()
             )
             .authenticationProvider(authenticationProvider())

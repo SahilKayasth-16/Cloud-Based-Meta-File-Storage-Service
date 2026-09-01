@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,12 +15,15 @@ import com.cloudmeta.storage.dto.file.DownloadUrlResponse;
 import com.cloudmeta.storage.dto.file.FileResponse;
 import com.cloudmeta.storage.entity.File;
 import com.cloudmeta.storage.entity.Folder;
+import com.cloudmeta.storage.entity.LinkShare;
+import com.cloudmeta.storage.entity.Share;
 import com.cloudmeta.storage.entity.User;
 import com.cloudmeta.storage.exception.FileNotFoundException;
 import com.cloudmeta.storage.exception.FolderNotFoundException;
-import com.cloudmeta.storage.entity.Share;
+import com.cloudmeta.storage.exception.LinkShareExpiredException;
 import com.cloudmeta.storage.repository.FileRepository;
 import com.cloudmeta.storage.repository.FolderRepository;
+import com.cloudmeta.storage.repository.LinkShareRepository;
 import com.cloudmeta.storage.repository.ShareRepository;
 import com.cloudmeta.storage.repository.UserRepository;
 import com.cloudmeta.storage.security.FilePermission;
@@ -37,6 +41,7 @@ public class FileServiceImpl implements FileService {
     private final FolderRepository folderRepository;
     private final UserRepository userRepository;
     private final ShareRepository shareRepository;
+    private final LinkShareRepository linkShareRepository;
     private final StorageService storageService;
     private final PermissionService permissionService;
 
@@ -171,17 +176,39 @@ public class FileServiceImpl implements FileService {
 
     @Override
     @Transactional(readOnly = true)
-    public InputStream getFileInputStreamByKey(String storageKey, String userEmail) {
-        User user = getUserByEmail(userEmail);
-        String userPrefix = "users/" + user.getId() + "/";
-        if (!storageKey.startsWith(userPrefix)) {
-            // Check if user has permission to any file with this storageKey
-            File file = fileRepository.findAll().stream()
-                    .filter(f -> storageKey.equals(f.getStorageKey()))
-                    .findFirst()
-                    .orElseThrow(() -> new FileNotFoundException("Access denied to requested storage key"));
-            permissionService.requirePermission(user, file, FilePermission.DOWNLOAD);
+    public InputStream getFileInputStreamByKey(String storageKey, String shareToken, String userEmail) {
+        // 1. Check if valid public shareToken is provided
+        if (shareToken != null && !shareToken.isBlank()) {
+            LinkShare linkShare = linkShareRepository.findByToken(shareToken)
+                    .orElseThrow(() -> new FileNotFoundException("Share link not found"));
+
+            if (!linkShare.isActive() || (linkShare.getFile() != null && linkShare.getFile().getDeletedAt() != null)) {
+                throw new LinkShareExpiredException("This share link is no longer available");
+            }
+            if (linkShare.getExpiresAt() != null && linkShare.getExpiresAt().isBefore(LocalDateTime.now())) {
+                throw new LinkShareExpiredException("This share link has expired");
+            }
+            if (!linkShare.getFile().getStorageKey().equals(storageKey)) {
+                throw new FileNotFoundException("Requested file key does not match share link");
+            }
+
+            return storageService.getFileInputStream(storageKey);
         }
-        return storageService.getFileInputStream(storageKey);
+
+        // 2. Check if user is authenticated
+        if (userEmail != null && !userEmail.isBlank()) {
+            User user = getUserByEmail(userEmail);
+            String userPrefix = "users/" + user.getId() + "/";
+            if (!storageKey.startsWith(userPrefix)) {
+                File file = fileRepository.findAll().stream()
+                        .filter(f -> storageKey.equals(f.getStorageKey()))
+                        .findFirst()
+                        .orElseThrow(() -> new FileNotFoundException("Access denied to requested storage key"));
+                permissionService.requirePermission(user, file, FilePermission.DOWNLOAD);
+            }
+            return storageService.getFileInputStream(storageKey);
+        }
+
+        throw new AccessDeniedException("Unauthorized access to download stream");
     }
 }

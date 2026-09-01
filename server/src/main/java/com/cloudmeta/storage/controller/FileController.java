@@ -52,14 +52,6 @@ public class FileController {
         return ResponseEntity.ok(files);
     }
 
-    @GetMapping("/shared-with-me")
-    public ResponseEntity<List<FileResponse>> getSharedFiles(
-            Authentication authentication
-    ) {
-        List<FileResponse> files = fileService.getSharedFiles(authentication.getName());
-        return ResponseEntity.ok(files);
-    }
-
     @GetMapping("/{id}")
     public ResponseEntity<FileResponse> getFileById(
             @PathVariable UUID id,
@@ -81,9 +73,11 @@ public class FileController {
     @GetMapping("/download-raw")
     public ResponseEntity<Resource> downloadRaw(
             @RequestParam("key") String key,
+            @RequestParam(value = "shareToken", required = false) String shareToken,
             Authentication authentication
     ) {
-        InputStream inputStream = fileService.getFileInputStreamByKey(key, authentication.getName());
+        String userEmail = authentication != null ? authentication.getName() : null;
+        InputStream inputStream = fileService.getFileInputStreamByKey(key, shareToken, userEmail);
         InputStreamResource resource = new InputStreamResource(inputStream);
 
         String filename = key.contains("_") ? key.substring(key.indexOf("_") + 1) : "downloaded_file";

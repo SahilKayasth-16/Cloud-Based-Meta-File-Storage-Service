@@ -82,34 +82,11 @@ const FileCard = ({ file, onDownload, onShare, onViewDetails, onDelete }) => {
         </div>
 
         <div style={styles.info}>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <span style={styles.filename}>{file.filename}</span>
-            {file.sharedRole && (
-              <span
-                style={{
-                  fontSize: "9px",
-                  fontWeight: "700",
-                  padding: "1px 5px",
-                  borderRadius: "4px",
-                  textTransform: "uppercase",
-                  backgroundColor: file.sharedRole === "EDITOR" ? "#fef3c7" : "#eff6ff",
-                  color: file.sharedRole === "EDITOR" ? "#d97706" : "#2563eb",
-                }}
-              >
-                {file.sharedRole}
-              </span>
-            )}
-          </div>
+          <span style={styles.filename}>{file.filename}</span>
           <div style={styles.subMeta}>
             <span>{formatSize(file.size)}</span>
-            {file.ownerEmail && (
-              <>
-                <span style={styles.dotSeparator}>•</span>
-                <span>By {file.ownerEmail}</span>
-              </>
-            )}
-            {!file.ownerEmail && formattedDate && <span style={styles.dotSeparator}>•</span>}
-            {!file.ownerEmail && formattedDate && <span>{formattedDate}</span>}
+            {formattedDate && <span style={styles.dotSeparator}>•</span>}
+            {formattedDate && <span>{formattedDate}</span>}
           </div>
         </div>
       </div>
