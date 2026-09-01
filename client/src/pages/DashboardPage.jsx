@@ -16,6 +16,11 @@ import {
   getDownloadUrl,
   deleteFile,
 } from "../services/fileService";
+import {
+  starFile,
+  unstarFile,
+  getStarredFileIds,
+} from "../services/starService";
 
 import Breadcrumbs from "../components/Breadcrumbs";
 import FolderCard from "../components/FolderCard";
@@ -62,6 +67,23 @@ const DashboardPage = () => {
 
   const [shareTargetFile, setShareTargetFile] = useState(null);
   const [detailsTargetFile, setDetailsTargetFile] = useState(null);
+
+  // React Query - Starred File IDs
+  const { data: starredFileIds = [] } = useQuery({
+    queryKey: ["starredFileIds"],
+    queryFn: getStarredFileIds,
+  });
+
+  const toggleStarMutation = useMutation({
+    mutationFn: (file) => {
+      const isStarred = starredFileIds.includes(file.id);
+      return isStarred ? unstarFile(file.id) : starFile(file.id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["starredFileIds"] });
+      queryClient.invalidateQueries({ queryKey: ["starredFiles"] });
+    },
+  });
 
   // React Query - Folders List (My Drive)
   const {
@@ -277,6 +299,22 @@ const DashboardPage = () => {
             </svg>
             Shared with me
           </button>
+
+          <button
+            onClick={() => navigate("/starred")}
+            style={styles.tabButton}
+          >
+            <span style={{ marginRight: "6px" }}>⭐</span>
+            Starred
+          </button>
+
+          <button
+            onClick={() => navigate("/trash")}
+            style={styles.tabButton}
+          >
+            <span style={{ marginRight: "6px" }}>🗑️</span>
+            Trash
+          </button>
         </div>
 
         {/* Drive Action Bar */}
@@ -388,6 +426,7 @@ const DashboardPage = () => {
           <FileListView
             folders={activeTab === "my-drive" ? folders : []}
             files={currentFiles}
+            starredFileIds={starredFileIds}
             onOpenFolder={handleOpenFolder}
             onRenameFolder={(f) => {
               setRenameError("");
@@ -397,6 +436,7 @@ const DashboardPage = () => {
               setDeleteError("");
               setDeleteTargetFolder(f);
             }}
+            onToggleStarFile={(f) => toggleStarMutation.mutate(f)}
             onDownloadFile={handleDownloadFile}
             onShareFile={activeTab === "my-drive" ? (f) => setShareTargetFile(f) : null}
             onViewDetailsFile={(f) => setDetailsTargetFile(f)}
@@ -444,6 +484,8 @@ const DashboardPage = () => {
                     <FileCard
                       key={file.id}
                       file={file}
+                      isStarred={starredFileIds.includes(file.id)}
+                      onToggleStar={(f) => toggleStarMutation.mutate(f)}
                       onDownload={handleDownloadFile}
                       onShare={activeTab === "my-drive" ? (f) => setShareTargetFile(f) : null}
                       onViewDetails={(f) => setDetailsTargetFile(f)}

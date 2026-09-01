@@ -20,9 +20,11 @@ const formatDate = (dateStr) => {
 const FileListView = ({
   folders = [],
   files = [],
+  starredFileIds = [],
   onOpenFolder,
   onRenameFolder,
   onDeleteFolder,
+  onToggleStarFile,
   onDownloadFile,
   onShareFile,
   onViewDetailsFile,
@@ -40,6 +42,7 @@ const FileListView = ({
       <table style={styles.table}>
         <thead>
           <tr style={styles.theadRow}>
+            <th style={styles.thStar}></th>
             <th style={styles.thName}>Name</th>
             <th style={styles.thType}>Type</th>
             <th style={styles.thSize}>Size</th>
@@ -57,6 +60,7 @@ const FileListView = ({
                 style={styles.tr}
                 onDoubleClick={() => onOpenFolder(folder)}
               >
+                <td style={styles.tdStar}></td>
                 <td style={styles.tdName} onClick={() => onOpenFolder(folder)}>
                   <div style={styles.nameCell}>
                     <svg style={styles.folderIcon} viewBox="0 0 24 24" fill="#f59e0b">
@@ -109,8 +113,22 @@ const FileListView = ({
           {/* Files Rows */}
           {files.map((file) => {
             const isMenuOpen = activeMenuId === `file-${file.id}`;
+            const isStarred = starredFileIds.includes(file.id);
             return (
               <tr key={`file-${file.id}`} style={styles.tr}>
+                <td style={styles.tdStar}>
+                  {onToggleStarFile && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleStarFile(file);
+                      }}
+                      style={isStarred ? styles.starActive : styles.starInactive}
+                    >
+                      {isStarred ? "★" : "☆"}
+                    </button>
+                  )}
+                </td>
                 <td style={styles.tdName}>
                   <div style={styles.nameCell}>
                     <svg style={styles.fileIcon} fill="none" stroke="#2563eb" viewBox="0 0 24 24">
@@ -208,11 +226,15 @@ const styles = {
     backgroundColor: "#f9fafb",
     borderBottom: "1px solid #e5e7eb",
   },
+  thStar: {
+    padding: "12px 8px 12px 16px",
+    width: "30px",
+  },
   thName: {
     padding: "12px 16px",
     fontWeight: "600",
     color: "#374151",
-    width: "40%",
+    width: "38%",
   },
   thType: {
     padding: "12px 16px",
@@ -243,6 +265,24 @@ const styles = {
     borderBottom: "1px solid #f3f4f6",
     cursor: "pointer",
     transition: "background-color 0.15s ease",
+  },
+  tdStar: {
+    padding: "12px 8px 12px 16px",
+    textAlign: "center",
+  },
+  starActive: {
+    background: "none",
+    border: "none",
+    fontSize: "16px",
+    color: "#eab308",
+    cursor: "pointer",
+  },
+  starInactive: {
+    background: "none",
+    border: "none",
+    fontSize: "16px",
+    color: "#d1d5db",
+    cursor: "pointer",
   },
   tdName: {
     padding: "12px 16px",
@@ -328,4 +368,3 @@ const styles = {
 };
 
 export default FileListView;
-

@@ -16,6 +16,8 @@ public interface FileRepository extends JpaRepository<File, UUID> {
 
     List<File> findByOwnerIdAndFolderIdAndDeletedAtIsNullOrderByFilenameAsc(UUID ownerId, UUID folderId);
 
+    List<File> findByOwnerIdAndDeletedAtIsNotNullOrderByDeletedAtDesc(UUID ownerId);
+
     Optional<File> findByIdAndOwnerIdAndDeletedAtIsNull(UUID id, UUID ownerId);
 
     Optional<File> findByIdAndOwnerId(UUID id, UUID ownerId);

@@ -30,7 +30,15 @@ const formatSize = (bytes) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
 };
 
-const FileCard = ({ file, onDownload, onShare, onViewDetails, onDelete }) => {
+const FileCard = ({
+  file,
+  isStarred,
+  onToggleStar,
+  onDownload,
+  onShare,
+  onViewDetails,
+  onDelete,
+}) => {
   const [showMenu, setShowMenu] = useState(false);
 
   const iconInfo = getFileIconInfo(file.filename, file.contentType);
@@ -38,6 +46,11 @@ const FileCard = ({ file, onDownload, onShare, onViewDetails, onDelete }) => {
   const handleMenuClick = (e) => {
     e.stopPropagation();
     setShowMenu((prev) => !prev);
+  };
+
+  const handleToggleStar = (e) => {
+    e.stopPropagation();
+    if (onToggleStar) onToggleStar(file);
   };
 
   const handleDownload = (e) => {
@@ -91,49 +104,61 @@ const FileCard = ({ file, onDownload, onShare, onViewDetails, onDelete }) => {
         </div>
       </div>
 
-      <div style={styles.menuContainer}>
-        <button
-          onClick={handleMenuClick}
-          style={styles.menuButton}
-          aria-label="File options"
-        >
-          <svg style={styles.menuIcon} fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-          </svg>
-        </button>
-
-        {showMenu && (
-          <div style={styles.dropdown}>
-            {onViewDetails && (
-              <button onClick={handleViewDetails} style={styles.dropdownItem}>
-                <svg style={styles.itemIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                View Details
-              </button>
-            )}
-            <button onClick={handleDownload} style={styles.dropdownItem}>
-              <svg style={styles.itemIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              Download
-            </button>
-            {onShare && (
-              <button onClick={handleShare} style={styles.dropdownItem}>
-                <svg style={styles.itemIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                </svg>
-                Share
-              </button>
-            )}
-            <button onClick={handleDelete} style={styles.dropdownItemDanger}>
-              <svg style={styles.itemIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-              Delete
-            </button>
-          </div>
+      <div style={styles.actionGroup}>
+        {onToggleStar && (
+          <button
+            onClick={handleToggleStar}
+            style={isStarred ? styles.starActive : styles.starInactive}
+            title={isStarred ? "Unstar file" : "Star file"}
+          >
+            {isStarred ? "★" : "☆"}
+          </button>
         )}
+
+        <div style={styles.menuContainer}>
+          <button
+            onClick={handleMenuClick}
+            style={styles.menuButton}
+            aria-label="File options"
+          >
+            <svg style={styles.menuIcon} fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+            </svg>
+          </button>
+
+          {showMenu && (
+            <div style={styles.dropdown}>
+              {onViewDetails && (
+                <button onClick={handleViewDetails} style={styles.dropdownItem}>
+                  <svg style={styles.itemIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  View Details
+                </button>
+              )}
+              <button onClick={handleDownload} style={styles.dropdownItem}>
+                <svg style={styles.itemIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download
+              </button>
+              {onShare && (
+                <button onClick={handleShare} style={styles.dropdownItem}>
+                  <svg style={styles.itemIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                  </svg>
+                  Share
+                </button>
+              )}
+              <button onClick={handleDelete} style={styles.dropdownItemDanger}>
+                <svg style={styles.itemIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -196,9 +221,29 @@ const styles = {
   dotSeparator: {
     margin: "0 4px",
   },
+  actionGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: "4px",
+  },
+  starActive: {
+    background: "none",
+    border: "none",
+    fontSize: "18px",
+    color: "#eab308",
+    cursor: "pointer",
+    padding: "4px",
+  },
+  starInactive: {
+    background: "none",
+    border: "none",
+    fontSize: "18px",
+    color: "#d1d5db",
+    cursor: "pointer",
+    padding: "4px",
+  },
   menuContainer: {
     position: "relative",
-    marginLeft: "8px",
   },
   menuButton: {
     display: "flex",

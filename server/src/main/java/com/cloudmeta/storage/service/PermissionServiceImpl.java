@@ -53,6 +53,11 @@ public class PermissionServiceImpl implements PermissionService {
             return false;
         }
 
+        // Shared users cannot access soft-deleted files while in Trash
+        if (file.getDeletedAt() != null && !file.getOwner().getId().equals(user.getId())) {
+            return false;
+        }
+
         // 1. OWNER has full access to all capabilities
         if (file.getOwner().getId().equals(user.getId())) {
             return true;
