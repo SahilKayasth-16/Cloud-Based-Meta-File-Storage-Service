@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { getTrashFiles, restoreFile } from "../services/trashService";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 
 const formatSize = (bytes) => {
   if (!bytes && bytes !== 0) return "0 B";
@@ -25,6 +26,7 @@ const formatDate = (dateStr) => {
 
 const TrashPage = () => {
   const { user, logout } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -43,12 +45,11 @@ const TrashPage = () => {
       queryClient.invalidateQueries({ queryKey: ["files"] });
       queryClient.invalidateQueries({ queryKey: ["starredFiles"] });
       setErrorMessage("");
-      setSuccessMessage(`"${data.filename}" restored successfully!`);
-      setTimeout(() => setSuccessMessage(""), 3000);
+      showToast(`"${data.filename}" restored successfully!`);
     },
     onError: (err) => {
-      setSuccessMessage("");
-      setErrorMessage(err.response?.data?.message || "Failed to restore file");
+      const msg = err.response?.data?.message || "Failed to restore file";
+      showToast(msg, "error");
     },
   });
 

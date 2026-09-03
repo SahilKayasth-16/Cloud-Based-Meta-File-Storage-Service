@@ -35,9 +35,11 @@ import DeleteFileModal from "../components/DeleteFileModal";
 import ShareModal from "../components/ShareModal";
 import FileDetailsModal from "../components/FileDetailsModal";
 import SearchFilterBar from "../components/SearchFilterBar";
+import { useToast } from "../context/ToastContext";
 
 const DashboardPage = () => {
   const { user, logout } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -166,10 +168,11 @@ const DashboardPage = () => {
   // Folder Mutations
   const createFolderMutation = useMutation({
     mutationFn: (name) => createFolder({ name, parentId: currentFolderId }),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["folders", currentFolderId] });
       setIsCreateOpen(false);
       setCreateError("");
+      showToast(`Folder "${data.name}" created successfully`);
     },
     onError: (err) => {
       setCreateError(err.response?.data?.message || "Failed to create folder");
@@ -178,11 +181,12 @@ const DashboardPage = () => {
 
   const renameFolderMutation = useMutation({
     mutationFn: ({ id, name }) => renameFolder(id, { name }),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["folders", currentFolderId] });
       queryClient.invalidateQueries({ queryKey: ["breadcrumbs"] });
       setRenameTargetFolder(null);
       setRenameError("");
+      showToast(`Folder renamed to "${data.name}"`);
     },
     onError: (err) => {
       setRenameError(err.response?.data?.message || "Failed to rename folder");
@@ -196,6 +200,7 @@ const DashboardPage = () => {
       queryClient.invalidateQueries({ queryKey: ["breadcrumbs"] });
       setDeleteTargetFolder(null);
       setDeleteError("");
+      showToast(`Folder deleted successfully`);
     },
     onError: (err) => {
       setDeleteError(err.response?.data?.message || "Failed to delete folder");
@@ -205,10 +210,11 @@ const DashboardPage = () => {
   // File Mutations
   const uploadFileMutation = useMutation({
     mutationFn: ({ file, onProgress }) => uploadFile(file, currentFolderId, onProgress),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["files", currentFolderId] });
       setIsUploadOpen(false);
       setUploadError("");
+      showToast(`File "${data.filename}" uploaded successfully`);
     },
     onError: (err) => {
       setUploadError(err.response?.data?.message || "Failed to upload file");
@@ -222,6 +228,7 @@ const DashboardPage = () => {
       queryClient.invalidateQueries({ queryKey: ["sharedFiles"] });
       setDeleteTargetFile(null);
       setDeleteFileError("");
+      showToast(`File moved to Trash`);
     },
     onError: (err) => {
       setDeleteFileError(err.response?.data?.message || "Failed to delete file");
