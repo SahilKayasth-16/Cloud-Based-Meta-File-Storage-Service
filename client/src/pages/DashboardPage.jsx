@@ -21,6 +21,7 @@ import {
   unstarFile,
   getStarredFileIds,
 } from "../services/starService";
+import { searchFiles } from "../services/searchService";
 
 import Breadcrumbs from "../components/Breadcrumbs";
 import FolderCard from "../components/FolderCard";
@@ -33,6 +34,7 @@ import FileUploadModal from "../components/FileUploadModal";
 import DeleteFileModal from "../components/DeleteFileModal";
 import ShareModal from "../components/ShareModal";
 import FileDetailsModal from "../components/FileDetailsModal";
+import SearchFilterBar from "../components/SearchFilterBar";
 
 const DashboardPage = () => {
   const { user, logout } = useAuth();
@@ -67,6 +69,39 @@ const DashboardPage = () => {
 
   const [shareTargetFile, setShareTargetFile] = useState(null);
   const [detailsTargetFile, setDetailsTargetFile] = useState(null);
+
+  // Search & Filter State
+  const [searchFilters, setSearchFilters] = useState({
+    q: "",
+    mimeType: "",
+    starred: null,
+    minSize: null,
+    maxSize: null,
+    createdFrom: "",
+    createdTo: "",
+  });
+  const [searchPage, setSearchPage] = useState(0);
+
+  const isSearchActive =
+    !!searchFilters.q ||
+    !!searchFilters.mimeType ||
+    searchFilters.starred !== null ||
+    searchFilters.minSize !== null ||
+    searchFilters.maxSize !== null ||
+    !!searchFilters.createdFrom ||
+    !!searchFilters.createdTo;
+
+  // React Query - File Search (Server-Side)
+  const {
+    data: searchData,
+    isLoading: isLoadingSearch,
+    isError: isErrorSearch,
+    error: searchError,
+  } = useQuery({
+    queryKey: ["fileSearch", searchFilters, searchPage],
+    queryFn: () => searchFiles({ ...searchFilters, page: searchPage, size: 20 }),
+    enabled: isSearchActive,
+  });
 
   // React Query - Starred File IDs
   const { data: starredFileIds = [] } = useQuery({
@@ -253,6 +288,18 @@ const DashboardPage = () => {
           <h1 style={styles.appTitle}>Cloud Meta Storage</h1>
         </div>
 
+        <SearchFilterBar
+          activeFilters={searchFilters}
+          onSearchChange={(q) => {
+            setSearchPage(0);
+            setSearchFilters((prev) => ({ ...prev, q }));
+          }}
+          onFilterChange={(filters) => {
+            setSearchPage(0);
+            setSearchFilters((prev) => ({ ...prev, ...filters }));
+          }}
+        />
+
         <div style={styles.userSection}>
           <div style={styles.userInfo}>
             <span style={styles.userName}>{user?.name}</span>
@@ -388,7 +435,127 @@ const DashboardPage = () => {
         )}
 
         {/* Folder & File Content Grid / List / States */}
-        {isLoading ? (
+        {isSearchActive ? (
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+              <h2 style={styles.sectionTitle}>
+                Search Results ({searchData?.totalElements || 0} files found)
+              </h2>
+              <button
+                onClick={() => {
+                  setSearchFilters({ q: "", mimeType: "", starred: null, minSize: null, maxSize: null, createdFrom: "", createdTo: "" });
+                  setSearchPage(0);
+                }}
+                style={{
+                  padding: "6px 12px",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  color: "#dc2626",
+                  backgroundColor: "#fef2f2",
+                  border: "1px solid #fecaca",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                }}
+              >
+                Clear Search
+              </button>
+            </div>
+
+            {isLoadingSearch ? (
+              <div style={styles.loadingContainer}>
+                <div style={styles.spinner}></div>
+                <p style={styles.loadingText}>Searching files in PostgreSQL...</p>
+              </div>
+            ) : isErrorSearch ? (
+              <div style={styles.errorContainer}>
+                <p style={styles.errorText}>
+                  {searchError?.response?.data?.message || "Search failed."}
+                </p>
+              </div>
+            ) : !searchData?.content || searchData.content.length === 0 ? (
+              <div style={styles.emptyContainer}>
+                <svg style={styles.emptyIcon} fill="none" stroke="#9ca3af" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <h3 style={styles.emptyTitle}>No files found</h3>
+                <p style={styles.emptyText}>Try adjusting your search query or filters.</p>
+              </div>
+            ) : viewMode === "list" ? (
+              <FileListView
+                folders={[]}
+                files={searchData.content}
+                starredFileIds={starredFileIds}
+                onToggleStarFile={(f) => toggleStarMutation.mutate(f)}
+                onDownloadFile={handleDownloadFile}
+                onShareFile={(f) => setShareTargetFile(f)}
+                onViewDetailsFile={(f) => setDetailsTargetFile(f)}
+                onDeleteFile={(f) => {
+                  setDeleteFileError("");
+                  setDeleteTargetFile(f);
+                }}
+              />
+            ) : (
+              <div style={styles.grid}>
+                {searchData.content.map((file) => (
+                  <FileCard
+                    key={file.id}
+                    file={file}
+                    isStarred={starredFileIds.includes(file.id)}
+                    onToggleStar={(f) => toggleStarMutation.mutate(f)}
+                    onDownload={handleDownloadFile}
+                    onShare={(f) => setShareTargetFile(f)}
+                    onViewDetails={(f) => setDetailsTargetFile(f)}
+                    onDelete={(f) => {
+                      setDeleteFileError("");
+                      setDeleteTargetFile(f);
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {searchData && searchData.totalPages > 1 && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "16px", marginTop: "24px" }}>
+                <button
+                  onClick={() => setSearchPage((prev) => Math.max(0, prev - 1))}
+                  disabled={searchPage === 0}
+                  style={{
+                    padding: "8px 16px",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    color: searchPage === 0 ? "#9ca3af" : "#374151",
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "6px",
+                    cursor: searchPage === 0 ? "not-allowed" : "pointer",
+                  }}
+                >
+                  Previous
+                </button>
+                <span style={{ fontSize: "14px", color: "#4b5563", fontWeight: "500" }}>
+                  Page {searchData.page + 1} of {searchData.totalPages}
+                </span>
+                <button
+                  onClick={() => setSearchPage((prev) => prev + 1)}
+                  disabled={searchData.last}
+                  style={{
+                    padding: "8px 16px",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    color: searchData.last ? "#9ca3af" : "#374151",
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "6px",
+                    cursor: searchData.last ? "not-allowed" : "pointer",
+                  }}
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </div>
+        ) : isLoading ? (
           <div style={styles.loadingContainer}>
             <div style={styles.spinner}></div>
             <p style={styles.loadingText}>

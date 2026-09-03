@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,7 +22,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.cloudmeta.storage.dto.file.DownloadUrlResponse;
+import com.cloudmeta.storage.dto.file.FilePageResponse;
 import com.cloudmeta.storage.dto.file.FileResponse;
+import com.cloudmeta.storage.dto.file.FileSearchRequest;
+import com.cloudmeta.storage.service.FileSearchService;
 import com.cloudmeta.storage.service.FileService;
 
 import lombok.RequiredArgsConstructor;
@@ -32,6 +36,7 @@ import lombok.RequiredArgsConstructor;
 public class FileController {
 
     private final FileService fileService;
+    private final FileSearchService fileSearchService;
 
     @PostMapping("/upload")
     public ResponseEntity<FileResponse> uploadFile(
@@ -58,6 +63,15 @@ public class FileController {
     ) {
         List<FileResponse> files = fileService.getSharedFiles(authentication.getName());
         return ResponseEntity.ok(files);
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<FilePageResponse> searchFiles(
+            @ModelAttribute FileSearchRequest request,
+            Authentication authentication
+    ) {
+        FilePageResponse response = fileSearchService.searchFiles(request, authentication.getName());
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}")
