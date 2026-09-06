@@ -6,6 +6,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -40,6 +41,9 @@ public class LinkShareServiceImpl implements LinkShareService {
     private final PermissionService permissionService;
     private final StorageService storageService;
     private final PasswordEncoder passwordEncoder;
+
+    @Value("${app.public-url:http://localhost:5173}")
+    private String publicFrontendUrl;
 
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -105,7 +109,7 @@ public class LinkShareServiceImpl implements LinkShareService {
         LinkShare savedLink = linkShareRepository.save(linkShare);
         log.info("Created public link share id={}, fileId={}, token={}", savedLink.getId(), file.getId(), token);
 
-        return PublicLinkResponse.fromEntity(savedLink, "http://localhost:5173");
+        return PublicLinkResponse.fromEntity(savedLink, publicFrontendUrl);
     }
 
     @Override
@@ -118,7 +122,7 @@ public class LinkShareServiceImpl implements LinkShareService {
 
         return linkShareRepository.findByFileId(file.getId())
                 .stream()
-                .map(link -> PublicLinkResponse.fromEntity(link, "http://localhost:5173"))
+                .map(link -> PublicLinkResponse.fromEntity(link, publicFrontendUrl))
                 .toList();
     }
 
@@ -210,4 +214,3 @@ public class LinkShareServiceImpl implements LinkShareService {
                 .build();
     }
 }
-
